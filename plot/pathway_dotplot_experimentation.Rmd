@@ -1,0 +1,48 @@
+
+```{r setup, include=FALSE}
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+At lab meeting today (2018.07.05), Hanghang showed a plot (pictured below) from a paper, [LSD1 Ablation Stimulates Anti-tumor Immunity and Enables Checkpoint Blockade, Sheng, et al.](https://www.sciencedirect.com/science/article/pii/S0092867418307153?via%3Dihub#sec2), that Jean-Pierre was interested in maybe using in the future. The paper figure was created in GraphPad Prism 6, but the code to reproduce it using ggplot is below.
+
+Original paper figure:
+![](pathway_dotplot_screenshot.png)
+```{r}
+# make dummy data table
+# made a dummy variable where everything equals 1, so I could get everything to line up in one column when plotting
+path_table <- tibble(pathway = c('defense response to other organism', 'cellular response to type 1 interferon', 'type I interferon signaling pathway', 'response to type I interferon', 'defense response to virus', 'response to virus', 'response to interferon-gamma', 'cellular response to interferon-gamma', 'regulation of immune effector process', 'regulation of cytokine production'), p_value = c(0.0000000001, 0.000000003, 0.00000001, 0.00000003, 0.00000009, 0.0000001, 0.000001, 0.01, 0.03, 0.1), odds_ratio = c(1, 2, 2, 2, 1, 1, 2, 2, 1, 1), dummy_var = rep(1, 10))
+```
+
+```{r}
+# plot reproduced almost exactly
+path_table %>% mutate(p_value_bins = ifelse(p_value > 0.05, 'ns', ifelse((p_value <= 0.05 & p_value > 0.01), 'sig', 'high_sig'))) %>% # added labels to p-values, so I could restrict the number of colors used and bin the p-values like in the original figure
+  ggplot(aes(x = dummy_var, y = pathway)) + # used the dummy variable for x so everything lines up vertically
+  geom_tile(aes(fill = p_value_bins)) + # geom_tile makes the background colored tiles
+  geom_point(aes(size = odds_ratio, color = 'placeholder')) + # It doesn't matter what value you give color; as long as you supply one value they'll all be the default ggplot coral (that is changed to orange later in the code)
+  scale_x_continuous(name = element_blank(), breaks = NULL) + # removes x axis name and axis tick marks
+  scale_color_manual(guide = FALSE, values = c('orange')) + # removes the color legend and makes the dots orange
+  scale_fill_manual(name = 'p-value', 
+                    labels = c('< 0.01', '< 0.05', '> 0.05'), 
+                    values = c('gray0', 'gray50', 'gray90')) +
+  scale_size_continuous(name = 'odds ratio', breaks = c(1,2), labels = c(1, 2)) +
+  theme_classic() +
+  coord_fixed() # makes the tiles square
+```
+
+```{r}
+# messing around with variations
+path_table %>% mutate(p_value_bins = ifelse(p_value > 0.05, 'ns', ifelse((p_value <= 0.05 & p_value > 0.01), 'sig', 'high_sig'))) %>% 
+  ggplot(aes(x = dummy_var, y = pathway)) + 
+  geom_tile(aes(fill = p_value)) +
+  geom_point(aes(size = odds_ratio, color = 'placeholder')) +
+  scale_x_continuous(name = element_blank(), breaks = NULL) +
+  scale_color_manual(guide = FALSE, values = c('orange')) +
+  scale_fill_continuous(name = 'p-value') +
+#                    labels = c('< 0.01', '< 0.05', '> 0.05'), 
+#                    values = c('gray0', 'gray50', 'gray90')) +
+  scale_size_continuous(name = 'odds ratio', breaks = c(1,2), labels = c(1, 2)) +
+  theme_classic() +
+  coord_fixed()
+  NULL
+```

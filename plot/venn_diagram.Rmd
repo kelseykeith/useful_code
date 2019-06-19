@@ -1,0 +1,45 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(eulerr)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+read_tsv('COL_pos_background.txt') %>% filter(chr == 'chr1') %>% mutate(sample_id = 'col') -> col_bkg
+
+read_tsv('LSI_pos_background.txt') %>% filter(chr == 'chr1') %>% mutate(sample_id = 'lsi') -> lsi_bkg
+
+comb_table <- full_join(lsi_bkg, col_bkg)
+```
+
+
+
+```{r}
+comb_table %>% 
+  unite(chr_base, chr, start, sep = '_') %>% 
+  spread(sample_id, chr_base) %>%
+  select(col, lsi, YL.gfp.pos.txt, OL.gfp.pos.txt, meth.diff, prom:shores) %>%
+  replace_na(list(col = 'none', lsi = 'none')) %>%
+  filter(prom == 1) %>%
+  summarize(inter = length(intersect(temp$col, temp$lsi)) - 1, 
+            col_uniq = length(setdiff(temp$col, temp$lsi)) - 1, 
+            lsi_uniq = length(setdiff(temp$lsi, temp$col)) - 1) -> venn_counts
+
+euler(c('A' = venn_counts$col_uniq, 'B' = venn_counts$lsi_uniq, 'A&B' = venn_counts$inter)) -> eul_fit
+
+plot(eul_fit)
+```
+

@@ -1,0 +1,46 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(cowplot)
+library(viridis)
+library(conflicted)
+
+filter <- dplyr::filter
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Tutorial: Embedding Subplots with Cowplot
+
+### Make Two Plots to Practice With
+
+```{r}
+ggplot(iris, aes(x = Sepal.Width, y = Sepal.Length, color = Species)) +
+  geom_point(size = 2.5) +
+  scale_color_viridis(discrete = T) +
+  theme_classic() -> iris_scatter
+```
+
+```{r}
+ggplot(iris, aes(x = Petal.Width, fill = Species)) +
+  geom_histogram(bins = 10, binwidth = 0.25) +
+  scale_fill_viridis(discrete = T) +
+  theme_classic() -> iris_hist
+```
+
+### Embed Plots
+
+```{r}
+ggdraw() +
+  draw_plot(iris_scatter, x = 0, y = 0, width = 1, height = 1) +
+  draw_plot(iris_hist + theme(legend.position = 'none'), 
+            x = 0.6, y = 0.5, width = 0.25, height = 0.25)
+```
+
+
+
+
+

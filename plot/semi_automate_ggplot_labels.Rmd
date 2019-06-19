@@ -1,0 +1,134 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## How to (Semi-)Automate Adding Labels to Plots
+
+In this example we'll generate fake methylation data and use it to make volcano plots to practice adding semi-automatic labels on. We'll label the number and percentage of significant sites that are hypo and hyper methylated for each category.
+
+---
+
+First, run the code in the chunk below to generate fake data to use.
+
+```{r}
+### simulate methylation data for demo
+tibble(data = rnorm(30000, mean = 0, sd = 5),
+       pvalue = rnorm(30000, mean = 0.25, sd = 0.25),
+       category = rep(c('category1', 'category2', 'category3'), 
+                   each = 10000)) -> fake_data
+```
+
+<br><br>
+
+### Wrangle the Data for Plotting
+
+Add columns onto the data table to make plotting easier
+
+```{r}
+### mutate the table for plotting
+fake_data %>% 
+# add a column indicating whether the data is hypo- or hyper-methylated
+  mutate(change = case_when(data <= -5 ~ 'hypo',
+                            data >= 5 ~ 'hyper',
+                            TRUE ~ 'no_change'),
+# add a column indicating whether the data point is "significant"
+         sig = ifelse(pvalue <= 0.05, 'sig', 'notsig'),
+# log the p values for plotting
+         logp = -log10(pvalue),
+# add a categorical color column for plotting; points will only be colored if 
+# they have changed more than 5% and have significant pvalues
+         color = ifelse((change == 'hypo' | change == 'hyper') & sig == 'sig', 
+         'color', 'no_color')) -> volc_data
+```
+
+<br>
+
+#### Make a Label Table
+
+First, quickly plot the volcano plots. This way you can see what the axis scales are to add into your label table.
+
+```{r}
+ggplot(volc_data, aes(x = data, y = logp)) +
+  geom_point(aes(color = color)) +
+  facet_wrap(~ category)
+```
+
+<br>
+
+Transform the data into a count/label table to use for adding label text to the volcano plot.
+
+```{r}
+#### make a count table for labelling
+volc_data %>%
+# group by the category, significance, and hypo/hyper/no change, then count "sites"
+  group_by(category, sig, change) %>%
+  count() %>%
+# ungroup so the code won't try to apply everything to groups
+  ungroup() %>%
+# filter for only significant and changing counts
+  filter(sig == 'sig', change != 'no_change') %>%
+### add columns for plotting the labels
+# the data column sets the x position of the labels; the name needs to be the 
+# same as the name of the x-axis variable in the main table; decided on the 
+# numbers by looking at the quick volcano plot run in the chunk above
+  mutate(data = rep(c(-10, 10), 3),
+# the logp column sets the y position of the labels; the name needs to be the 
+# same as the name of the y-axis variable in the main table; decided on the 
+# numbers by looking at the quick volcano plot run in the chunk above
+         logp = rep(4, 6),
+# calculate the what percentage the counts are of the total data and round to
+# two decimal places
+         perc = round((n / nrow(volc_data)), 2),
+# add a column with a percent sign, which you'll unite with other columns to 
+# make the label column next
+         sign = '%') %>%
+# combine the count and percent columns, separating by ', ' to form the 
+# label/annotation column
+  unite(anno, n, perc, sep = ', ') %>%
+# add the percent signs onto the annotation column
+  unite(anno, anno, sign, sep = '') -> volc_labels
+```
+
+<br>
+
+If you look at the volcano_labels, you need to have three (four columns if you're facetting like we are here).
+
+- column with the labels, here **anno**
+- column with the x-axis values for plotting with the same name as the x-axis column in the main table, here **data**
+- column with the y-axis values for plotting with the same name as the x-axis column in the main table, here **logp**
+- OPTIONAL if you want to facet, column with the facet the label should go into, with the same name and categories within the column as the facet column in the main table, here **category**
+
+```{r}
+volc_labels
+```
+
+<br><br>
+
+### Volcano Plot
+
+Use `geom_text()` to add your labels onto your volcano plots
+
+```{r}
+  ggplot(volc_data, aes(x = data, y = logp)) +
+    geom_point(aes(color = color)) +
+    scale_color_manual(values = c('deepskyblue3', 'grey50')) +
+# you need to use data = table_name here to specify you're using other data than
+# in the main ggplot call; you also need to add the label column as an aesthetic
+    geom_text(data = volc_labels, aes(label = anno)) +
+    geom_hline(yintercept = -log10(0.05), 
+               linetype = 'dashed', color = 'grey60') +
+    geom_vline(xintercept = c(-5, 5),
+               linetype = 'dashed', color = 'grey60') +
+    facet_wrap(~ category) +
+    labs(x = 'Data Description', y = '-Log10 PValue') +
+    theme_classic() +
+    theme(legend.position = 'none')
+```
+
+<br><br>

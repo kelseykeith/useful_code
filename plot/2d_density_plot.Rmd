@@ -1,0 +1,67 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(conflicted)
+library(viridis)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## How to Make a 2D Density Plot with `ggplot()`
+
+If you run the code in the chunk below, you'll see that there are two clusters of points. Sometimes it's helpful (especially when your data is more overplotted than this) to visualize the density of the points.
+
+```{r}
+### scatterplot using the faithful dataset (built into R)
+ggplot(faithful, aes(x = eruptions, y = waiting)) + 
+  geom_point() + 
+# this is just here setting the axis scales; these are good for when you're 
+# looking at the density plots later
+  xlim(0.5, 6) +
+  ylim(35, 110) +
+# theme_classic() because I don't like the default ggplot() theme
+  theme_classic()
+```
+
+You can add the density contours onto the scatterplot using `geom_density_2d()`
+
+```{r}
+ggplot(faithful, aes(x = eruptions, y = waiting)) + 
+  geom_point() +
+# this is the geom to add the density contours!
+  geom_density_2d() +
+  xlim(0.5, 6) +
+  ylim(35, 110) +
+  theme_classic()
+```
+
+Or, you can skip the points and visualize the density using filled-in color instead.
+
+```{r}
+ggplot(faithful, aes(x = eruptions, y = waiting)) +
+# have to use stat_density_2d() for the filled-in color
+# aes(fill = stat(level)) is saying "give color according to how many things
+# are on the plot" and geom = "polygon" is telling ggplot to use filled in 
+# things instead of the contour lines
+  stat_density_2d(aes(fill = stat(level)), geom = "polygon") +
+  xlim(0.5, 6) +
+  ylim(35, 110) +
+  theme_classic()
+```
+
+Since the coloring comes from the default `ggplot()` continuous color scale, it really doesn't have enough contrast. I suggest (of course) using `viridis` instead
+
+```{r}
+ggplot(faithful, aes(x = eruptions, y = waiting)) + 
+  stat_density_2d(aes(fill = stat(level)), geom = "polygon") +
+# change the color scale to the default viridis scale.
+  scale_fill_viridis() +
+  xlim(0.5, 6) +
+  ylim(35, 110) +
+  theme_classic()
+```
+
+

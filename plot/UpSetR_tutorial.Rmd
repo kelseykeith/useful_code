@@ -1,0 +1,238 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(conflicted)
+library(viridis)
+library(magrittr)
+library(UpSetR)
+
+filter <- dplyr::filter
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## UpSetR Tutorial
+
+UpSet plots are a better way to visualize more than two intersecting sets
+
+-
+
+UpSetR documentation here: <https://github.com/hms-dbmi/UpSetR>
+
+### Set Up
+
+Fake methylation data! for the the tutorial
+
+```{r}
+tibble(sma_id = 'SmaI_mm9',
+       site_number = rep(sample(1000), 3),
+       sample = factor(rep(c('cond1', 'cond2', 'cond3'), each = 1000),
+                       levels = c('cond1', 'cond2', 'cond3')),
+       meth_diff = c(runif(n = 3000, min = -100, max = 100)),
+       pvalue = rnorm(3000)) %>%
+  unite(site_id, sma_id, site_number, sep = '_') -> fake_meth_data
+```
+
+### Wrangle Data
+
+The UpSetR function `upset()` needs data to be in a matrix format where every set is its own column and the column contains 1 and 0 where 1 = the thing is in the set and 0 = the thing is not in the set
+
+```{r}
+fake_meth_data %>%
+# filter for significant sites by pvalue
+  filter(pvalue < 0.05) %>%
+# take the pvalue column away before spreading
+  select(-pvalue) %>%
+# spread the data into a wide format for the upset function
+  spread(sample, meth_diff) %>%
+# replace the NAs with 0 because those sites weren't observed
+  replace(is.na(.), 0) %>%
+# annotate columns with 0/1 based on whether they "changed" more than 5% and the
+# direction of the change
+  mutate(cond1_hypo = ifelse(cond1 <= -5, 1, 0),
+         cond1_hyper = ifelse(cond1 >= 5, 1, 0),
+         cond2_hypo = ifelse(cond2 <= -5, 1, 0),
+         cond2_hyper = ifelse(cond2 >= 5, 1, 0),
+         cond3_hypo = ifelse(cond3 <= -5, 1, 0),
+         cond3_hyper = ifelse(cond3 >= 5, 1, 0)) %>%
+# drop the columns with the methylation data (not 100% necessary)
+  select(site_id, cond1_hypo:cond3_hyper) %>%
+# the table MUST be a data.frame for the upset() function
+  as.data.frame() -> upset_tbl
+```
+
+### Plot UpSet Plots!
+
+The absolute basics: the table and the columns. All you need to give the function is your table of 1s and 0s and tell it which columns to plot.
+
+```{r}
+# hypomethylated sites
+upset(upset_tbl,
+# list the columns you want to plot
+      sets = c('cond1_hypo', 'cond2_hypo', 'cond3_hypo'))
+
+# hypermethylated sites
+upset(upset_tbl,
+# list the columns you want to plot
+      sets = c('cond1_hyper', 'cond2_hyper', 'cond3_hyper'))
+```
+
+#### Reorder the bars
+
+The optional argument `order.by` lets you set the order of the bars. When you specify "degree", the bars are ordered by the number of intersections, starting with the highest number on the left, in this case 3, and going down to unique things on the right.
+
+```{r}
+# hypomethylated sites
+upset(upset_tbl,
+      sets = c('cond1_hypo', 'cond2_hypo', 'cond3_hypo'),
+      order.by = 'degree')
+
+# hypermethylated sites
+upset(upset_tbl,
+      sets = c('cond1_hyper', 'cond2_hyper', 'cond3_hyper'),
+      order.by = 'degree')
+```
+
+When you specify "freq", the bars are ordered starting with the largest set on the left and then in descending order by set size.
+
+```{r}
+# hypomethylated sites
+upset(upset_tbl,
+      sets = c('cond1_hypo', 'cond2_hypo', 'cond3_hypo'),
+      order.by = 'freq')
+
+# hypermethylated sites
+upset(upset_tbl,
+      sets = c('cond1_hyper', 'cond2_hyper', 'cond3_hyper'),
+      order.by = 'freq')
+```
+
+You can also combine both arguments.
+
+```{r}
+# degree first, freq second
+# hypomethylated sites
+upset(upset_tbl,
+      sets = c('cond1_hypo', 'cond2_hypo', 'cond3_hypo'),
+      order.by = c('degree', 'freq'))
+
+# hypermethylated sites
+upset(upset_tbl,
+      sets = c('cond1_hyper', 'cond2_hyper', 'cond3_hyper'),
+      order.by = c('degree', 'freq'))
+
+###
+
+### freq first, degree second
+# hypomethylated sites
+upset(upset_tbl,
+      sets = c('cond1_hypo', 'cond2_hypo', 'cond3_hypo'),
+      order.by = c('freq', 'degree'))
+
+# hypermethylated sites
+upset(upset_tbl,
+      sets = c('cond1_hyper', 'cond2_hyper', 'cond3_hyper'),
+      order.by = c('freq', 'degree'))
+```
+
+#### Change the Appearance of the UpSet Plots
+
+Change the main bar colors. You can make them a single color, or give a vector of colors for each individual bar
+
+```{r}
+### one main bar color
+# hypomethylated sites
+upset(upset_tbl,
+      sets = c('cond1_hypo', 'cond2_hypo', 'cond3_hypo'),
+      main.bar.color = 'deepskyblue3')
+
+# hypermethylated sites
+upset(upset_tbl,
+      sets = c('cond1_hyper', 'cond2_hyper', 'cond3_hyper'),
+      main.bar.color = 'firebrick3')
+
+### each bar is a different color
+upset(upset_tbl,
+      sets = c('cond1_hyper', 'cond2_hyper', 'cond3_hyper'),
+      main.bar.color = c('firebrick3', 'orange', 'lightgoldenrod1', 
+                         'green4', 'blue', 'midnightblue', 'violet'))
+```
+
+Set the color of the intersection points
+
+```{r}
+upset(upset_tbl,
+      sets = c('cond1_hypo', 'cond2_hypo', 'cond3_hypo'),
+      matrix.color = c('orange'))
+```
+
+Set the color of the "Set Size" bar plot. Can give it one color, or can give it a vector of colors so each set is different.
+
+```{r}
+# one color
+upset(upset_tbl,
+      sets = c('cond1_hypo', 'cond2_hypo', 'cond3_hypo'),
+      sets.bar.color = c('green4'))
+
+# vector of colors for all bars
+upset(upset_tbl,
+      sets = c('cond1_hypo', 'cond2_hypo', 'cond3_hypo'),
+      sets.bar.color = c('magenta4', 'sienna2', 'green4'))
+```
+
+Set labels
+
+```{r}
+upset(upset_tbl,
+      sets = c('cond1_hypo', 'cond2_hypo', 'cond3_hypo'),
+      mainbar.y.label = 'This sets the y label!',
+      sets.x.label = 'This sets the x label!')
+```
+
+#### All together now!
+
+```{r}
+upset(upset_tbl,
+      sets = c('cond1_hypo', 'cond2_hypo', 'cond3_hypo'),
+      keep.order = T,
+      order.by = 'degree',
+      main.bar.color = 'deepskyblue3',
+      mainbar.y.label = '',
+      sets.bar.color = c('magenta4', 'sienna2', 'green4'),
+      text.scale = c(1, 2, 1, 1, 2, 2))
+
+upset(upset_tbl,
+      sets = c('cond1_hyper', 'cond2_hyper', 'cond3_hyper'),
+      keep.order = T,
+      order.by = 'degree',
+      main.bar.color = 'firebrick3',
+      mainbar.y.label = '',
+      sets.bar.color = c('magenta4', 'sienna2', 'green4'),
+      text.scale = c(1, 2, 1, 1, 2, 2))
+```
+
+### Saving the UpSet Plot
+
+Because an UpSet plot isn't a normal ggplot object, if you want to use `ggsave()`, you have to wrap the UpSet plot function in `ggsave()`. Example in the chunk below. To try saving, uncomment the `ggsave` lines and run the chunk.
+
+```{r}
+#ggsave('practice_saving_upset.png',
+upset(upset_tbl,
+      sets = c('cond1_hypo', 'cond2_hypo', 'cond3_hypo'),
+      keep.order = T,
+      order.by = 'degree',
+      main.bar.color = 'deepskyblue3',
+      mainbar.y.label = '',
+      sets.bar.color = c('magenta4', 'sienna2', 'green4'),
+      text.scale = c(1, 2, 1, 1, 2, 2))
+#)
+```
+
+
+
+
+
+
