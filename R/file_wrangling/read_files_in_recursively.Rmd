@@ -1,0 +1,108 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Read Files in Recursively Using `purrr`
+
+### Load The Libraries
+
+```{r}
+#library(tidyverse)
+
+### OR
+
+library(purrr)
+library(dplyr)
+library(readr)
+library(tidyr)
+```
+
+### Read In the Paths
+
+We're going to read in the files in the `practice_files` subdirectory of this directory. If you don't know what's in the directory, you can check with `dir()`. With no arguments, `dir()` will give you the contents of the current working directory, but you can specify any file path for `dir()`
+
+```{r}
+# check what's in the current working directory
+dir()
+
+# since "practice_files" doesn't have a file ending, it's probably a directory
+# (also I made it and said the files are in there so it's definitely a directory) 
+# check what's in that directory by specifying "practice_files" in dir()
+dir("practice_files")
+```
+
+So now we know that the files we want are in the `practice_files` directory and they all have the ending `.txt`. So we're going to have R fetch the list of files for us using the `list.files()` function
+
+```{r}
+### get a list of the files
+# for list.files, you need to specify the path to the files, here just the name
+# of the subdirectory the files are in; also do NOT put a slash at the end of 
+# the path or you'll get a double slash returned
+files <- list.files(path = 'practice_files',
+# you also need to give the file ending of the files you want, here .txt
+                    pattern = '.txt',
+# you need to set full.names = T so you get the complete path (necessary to read
+# the files in) instead of just the files names
+                    full.names = T)
+```
+
+### Read in the Files
+
+Use the list of file paths to read the files in recursively using `purrr::map()`
+
+```{r}
+### read files in recursively
+# turn the list of files into a dataframe
+tibble(filename = files) %>%
+# make a new column the data will be read into, then use purrr::map, to apply 
+# the read_tsv() function over the filenames in the filename column
+  mutate(file_contents = purrr::map(filename, ~ read_tsv(.))) %>%
+# If you just ran the code through the line above, you'd see that you have in 
+# the file_contents column things saying <S3: spec_tbl_df>. These are dataframes
+# that are nested inside of the main dataframe. To unpack them and have a normal
+# table use tidyr::unnest()
+  tidyr::unnest() -> data
+```
+
+### Wrangle the Filenames
+
+Often, the filenames contain sample information that you'll want to keep, usually, as in this case, sample IDs. Looking at the data by running the chunk below, the information is there, but in an annoying format, so we'll want to simplify the filenames. I usually do this in the same step as reading in the files, but for clarity I've separated it out here.
+
+```{r}
+data
+```
+
+Use `tidyr` functions to simplify the filenames to sample IDs. I suggest you run the code line by line so you understand what each line does.
+
+```{r}
+data %>%
+# separate the folder name from the file name
+  separate(filename, into = c('folder_name', 'file_name'), sep = '/') %>%
+# I want the beginning of each file name before the _, so I'll separate by _
+  separate(file_name, into = c('sample_id', 'temp1', 'temp2', 
+                               'temp3', 'temp4', 'temp5'), sep = '_') %>% 
+# if you the sample ids after running the line above, two of them have the ID I
+# want followed by a dash, followed by a number, so I'll separate by the dash,
+# so I only have the id I want
+  separate(sample_id, into = c('sample_id', 'number'), sep = '-') %>% 
+# drop all the unnecessary columns and save to a new object
+  select(-folder_name, -number, -(temp1:temp5)) -> data_ID
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
