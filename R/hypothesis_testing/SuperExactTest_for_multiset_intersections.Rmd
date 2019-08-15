@@ -1,0 +1,122 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(conflicted)
+
+library(SuperExactTest)
+
+filter <- dplyr::filter
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## `SuperExactTest` Tutorial
+
+The `SuperExactTest` package visualizes and carries out a statistical test for multi-set intersections. This tutorial focuses on getting pvalues for all possible set intersections.
+
+-
+
+`SuperExactTest` GitHub: <https://github.com/mw201608/SuperExactTest/>
+`SuperExactTest` User Guide: <https://cran.r-project.org/web/packages/SuperExactTest/vignettes/set_html.html>
+`SuperExactTest` Paper: <https://www.nature.com/articles/srep16923>
+
+### Make Fake Data to Play With
+
+Typically with genomic data, for locations in the genome we have some sort of measurement with a pvalue associated with it. Below is fake data with 10 "sites" that each have a fake measurement and pvalue for three different conditions. The table is in wide format because that's what SuperExactTest wants and it was easier to fake the data that way.
+
+```{r}
+tibble(loc = c('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'),
+       measure_cond1 = 1:10,
+       sig_cond1 = c(rep(0.05, 7), rep(0.7, 3)),
+       measure_cond2 = c(1:5, 10:14),
+       sig_cond2 = c(rep(0.01, 5), rep(0.65, 3), 0.01, 0.01),
+       measure_cond3 = c(1, 12, 3, 14, 5, 16, 7:8, 13:14),
+       sig_cond3 = c(rep(c(0.01, 0.2), 3), 0.05, 0.05, 0.2, 0.05)) -> fake_data
+```
+
+#### Wrangle Data for SuperExactTest
+
+`SuperExactTest` wants lists of characters to count, so we're going to add additional columns onto the table for each condition with the "location" in the column if it's signficant and `NA` if the location is not signficant. Make sure to check out the table created in the chunk below so you understand how the data is formatted.
+
+```{r}
+fake_data %>% 
+# if the pvalue is signifcant for that condition, put the location in the new
+# column, otherwise, put NA in the new column
+  mutate(set_cond1 = ifelse(sig_cond1 <= 0.05, loc, NA),
+         set_cond2 = ifelse(sig_cond2 <= 0.05, loc, NA),
+         set_cond3 = ifelse(sig_cond3 <= 0.05, loc, NA)) -> overlaps
+```
+
+### SuperExactTest
+
+#### Make List of Lists for SuperExactTest
+
+`SuperExactTest` wants a list of lists to carry out the test on, so in the chunk below we make a new list object out of the columns we created in the previous chunk, omiting `NA`s. This creates a object containing three lists of unequal lengths with the significant "locations" for each condition. This is what `SuperExactTest` will carry out the test on.
+
+```{r}
+list(cond1 = na.omit(overlaps$set_cond1),
+     cond2 = na.omit(overlaps$set_cond2),
+     cond3 = na.omit(overlaps$set_cond3)) -> set_list
+```
+
+#### Test
+
+The `SuperExactTest` is simple. It only needs two arugments, the list of lists and the number of "locations"/rows/things looked at in the original table.
+
+```{r}
+supertest(set_list, n = nrow(fake_data)) -> set_test
+```
+
+#### Wrangle Results: Get PValues for Each Intersection in a Talbe
+
+You can use `$` subsetting to get the pvalues from the `SuperExactTest` object, then `enframe()` to turn the vector into a table, BUT as you can see when you run the code in the chunk below, the names are binary numbers. `SuperExactTest` doesn't use the names of the conditions you give it to name the sets.
+
+```{r}
+set_test$P.value %>% 
+# enframe turns a vector into a data.frame/tibble
+  enframe()
+```
+
+To see which set is which, we can plot the results of the `SuperExactTest`. Below are two examples: (1) The default `SuperExactTest` circle intersection plot and (2) the much easier to look at `SuperExactTest` intersection bar plot.
+
+```{r}
+# default circle
+plot(set_test)
+
+# bar plot
+plot(set_test, Layout = 'landscape')
+```
+
+Looking at the bar plot above, you can see that the circles underneath the bars are in the same order as the binary numbers in the name column after `enframe()`, EX: 001 = cond3, 010 = cond2, 011 = intersection of cond3 and cond2. Now we can manually add in a column describing the intersections based on looking at the plot (and do a bit of other cleanup)
+
+```{r}
+# make the pvalues into a table
+set_test$P.value %>% 
+  enframe() %>%
+# OPTIONAL: join in the intersection sizes (numbers on top of bars);
+# gives another thing to look at to make sure you add in the intersection
+# descriptions correctly
+  left_join(enframe(set_test$overlap.sizes), by = 'name') %>%
+# manually add in intersection descriptions in a new column based on looking
+# at the plot
+  mutate(intersection = c('cond3', 'cond2', 'cond2&cond3',
+                          'cond1', 'cond1&cond3', 'cond1&cond2',
+                          'cond1&cond2&cond3')) %>%
+# more descriptive column names
+  rename(pvalue = value.x, set_name = name, overlap_size = value.y) %>%
+# The NA values in the pvalue column are where there's no overlap/where it has
+# an individual condition. We don't need these, because we're testing set 
+# intersections and these are not intersections, so drop them with na.omit()
+  na.omit() %>%
+# rearrange the columns because I like this order
+  select(set_name, intersection, pvalue, overlap_size) -> pvalues
+```
+
+Done! Now you have pvalues for each of your intersections!!!
+
+<br><br>
+
