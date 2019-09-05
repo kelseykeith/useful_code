@@ -8,10 +8,14 @@ library(conflicted)
 
 # for wrangling GRanges necessary to use annotateGenes()
 library(plyranges)
-# annotation information for annotating the genes
-library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+# annotation information for annotating the genes 
+# EDIT 2019-09-05 - suggest calling libraries explicitly in code (changed below)
+# because loading the library makes R VERY SLOW and you only need it once
+# library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 # has the function annotateGenes(), which we'll use to annotate the genes
-library(bumphunter)
+# EDIT 2019-09-05 - suggest calling libraries explicitly in code (changed below)
+# because loading the library makes R VERY SLOW and you only need it once
+# library(bumphunter)
 
 filter <- dplyr::filter
 
@@ -49,15 +53,22 @@ See [Making and Utilizing TxDb Objects](https://bioconductor.org/packages/devel/
 # subset the Tx database for the standard chromosomes, 1 - 22, X, Y, M
 # if you run just seqlevels(TxDb.Hsapiens.UCSC.hg38.knownGene)[1:25], you'll
 # see it's just a vector of those chromosomes
-txdb <- keepSeqlevels(TxDb.Hsapiens.UCSC.hg38.knownGene,
-                      seqlevels(TxDb.Hsapiens.UCSC.hg38.knownGene)[1:25])
+# EDIT 2019-09-05 Stopped loading the TxDb library and called it explicitly 
+# instead, because loading the library makes R very slow
+txdb <- keepSeqlevels(TxDb.Hsapiens.UCSC.hg38.knownGene::
+                        TxDb.Hsapiens.UCSC.hg38.knownGene,
+                      seqlevels(TxDb.Hsapiens.UCSC.hg38.knownGene::
+                                  TxDb.Hsapiens.UCSC.hg38.knownGene)[1:25])
 ```
 
 `bumphunter`'s `annotateTranscripts()` prepares a `GRange` from a TxDb object for the `matchGenes()` function. It pulls the locations of genes from the TxDb object and annotates them with transcription start and end sites, and several different naming conventions.
 
 ```{r}
 # extract the gene information for matchGenes()
-genes <- annotateTranscripts(txdb)
+# EDIT 2019-09-05 Stopped loading the bumphunter library and called it 
+# explicitly instead, because it seems to slow R down and interfere with other
+# packages
+genes <- bumphunter::annotateTranscripts(txdb)
 ```
 
 ### Annotate Data with Closest Gene
@@ -80,7 +91,9 @@ genes <- annotateTranscripts(txdb)
 - **subjectHits**: Index in the subject, aka the TxDb GRange, of the gene
 
 ```{r}
-matchGenes(data_grange, genes) -> gene_anno
+# EDIT 2019-09-05 - decided calling the package explicitly was better for
+# speed/conflicts
+bumphunter::matchGenes(data_grange, genes) -> gene_anno
 ```
 
 
