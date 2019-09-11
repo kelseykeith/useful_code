@@ -1,0 +1,790 @@
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(IRanges)
+library(GenomicRanges)
+library(plyranges)
+library(HelloRanges)
+library(HelloRangesData)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Ranges Tutorial
+## Ranges: Data Structures for Representing Genomics Data
+Practice for myself using the various Ranges tools from bioconductor
+
+## IRanges (IntegerRanges)
+IRanges objects were created to store genomic sequences sparsely. Rather than storing the entire sequence, it stores the start, end, width, and name of the sequence (or other object).
+
+### The Absolute Basics
+
+```{r}
+### make an IRanges object with the IRanges constructor
+# make an IRanges object using only start and width 
+ir1 <- IRanges(start = 1:10, width = 10:1)
+ir1
+# NOTE: Don't need to supply the end here, because it just adds the width to the start
+
+# make an IRanges object using only start and end
+ir2 <- IRanges(start = 1:10, end = 11)
+ir2
+# NOTE1: Propagates the width to all ten starts
+# NOTE2: Subtracts end - start and calculates width
+
+# make an IRanges object using only end and width
+ir3 <- IRanges(end = 11, width = 10:1)
+ir3
+# NOTE: again, calculates start from end and width
+```
+
+```{r}
+### working with an IRanges object
+# make a toy object
+ir <- IRanges(c(1, 8, 14, 15, 19, 34, 40), width=c(12, 6, 6, 15, 6, 2, 7))
+ir
+# NOTE: if you don't specify what the vector is, it assumes the vector is starts
+
+# access starts, ends, widths of ranges
+start(ir)
+end(ir)
+width(ir)
+
+# subset an IRanges object
+ir[1:4]
+# only seems to give the rows specified
+
+# you can pipe it!
+# you can also convert IRanges objects to tibbles!
+ir %>% as_tibble()
+# and filter()!
+ir %>% filter(start <= 15)
+```
+
+### Normality/NormalRanges
+Ideally an IRanges object would be "normal. For it to be normal its ranges must:
+
++ be a set of integers
++ not be empty/have a width
++ not overlap
++ be ordered from left to right
++ not be adjacent/have a space of at least 1 between ranges
+
+The reduce function in IRanges, makes any IRanges object normal by merging overlapping ranges
+
+```{r}
+ir
+reduce(ir)
+```
+
+### Working with Multiple IRanges Objects
+Sometimes you might want to work with groups of IRanges. You can put them together using `IRangesList`
+
+```{r}
+# make the IRanges List
+rl <- IRangesList(ir, rev(ir))
+rl
+```
+
+### Working with Ranges
+#### `findOverlaps`
+Find overlapping ranges between two IRanges objects with `findOverlaps`. As the result of calling `findOverlaps`, you get a Hits object with two columns, queryHits and subjectHits. The queryHits column lists the row numbers from the first IRanges object given to `findOverlaps` and the subjectHits column lists the row number for the overlapping range from the second IRanges object.
+
+```{r}
+ol <- IRanges::findOverlaps(ir, reduce(ir))
+ir
+reduce(ir)
+ol
+```
+
+### `coverage`
+The `coverage` function counts the number of ranges overlapping each position. It returns an integer-Rle. An rle is a way of saving space when storing long vectors, because it saves the value and the number of times the value is repeated rather than the entire vector. For example, if you have a 10 number vector containing the numbers 1, 1, 1, 2, 2, 0, 0, 0, 1, 1, the rle would store Lengths: 3, 2, 3, 2 and Values: 1, 2, 0, 1 where values are the numbers contained in the vector and Lengths are the number of times those values are repeated. For any practical downstream purpose, it seems like you'd want to call `as.vector()` on the result of the `coverage` function so you have a useable vector.
+
+```{r}
+cov <- coverage(ir)
+ir
+cov
+as.vector(cov)
+```
+
+### Finding Neighboring Ranges
+### `nearest`
+When you call `nearest` on an IRanges object, it returns a vector with one number for each row, giving the row number of the range that's closest to it. For example, in the result below, the closest range for row 1 is the range in row 2 and the closest range for row 3 is the range in row 5.
+
+```{r}
+nearest(ir)
+```
+
+### `precede`
+Works almost the same as `nearest` but gives the row number of the closest range before the range in question.
+
+```{r}
+precede(ir)
+```
+
+### `follow`
+Works almost the same as `nearest` but gives the row number of the closest range after the range in question.
+
+```{r}
+follow(ir)
+```
+
+### Transforming Ranges
+#### Adjusting starts, ends, and widths
+##### `shift`
+Shifts all ranges forward by the specified amount
+
+```{r}
+ir
+shift(ir, 10)
+```
+
+##### `narrow`
+Narrow ranges by specifying some combination of start, end, and width.
+
+```{r}
+ir
+
+# can narrow to a specific width from the beginning of the range by supplying start and widht
+narrow(ir, start = 1, width = 2)
+
+# can also narrow by supplying a specific starting and ending point for ranges
+narrow(ir, start = 1, end = 2)
+
+# can also supply a vector of arguments for start, end, and width
+# vectors that are shorter than the number of rows in the IRanges object will be recycled
+narrow(ir, start = 1:5, width = c(1, 2))
+narrow(ir, start = 1:2, end = 1:2)
+```
+
+##### `resize`
+Change the width of ranges
+
+```{r}
+ir
+resize(ir, width = 3)
+resize(ir, width = 1:7)
+```
+
+##### `flank`
+Returns a range of the specified width flanking the range in the IRanges object
+
+```{r}
+ir
+
+# by default, flank returns the a new range to the left, or at the beginning of the range in the object
+flank(ir, 3)
+
+# set start equal to FALSE to get the flanking range to the range, or at the end
+flank(ir, 3, start = FALSE)
+
+# when both is set equal to TRUE you get a flanking range double the width specified from the left/start
+flank(ir, 3, both = TRUE)
+
+# when both is set equal to TRUE and start is set equal to FALSE you get a flanking range double the width specified from the right/end
+flank(ir, 3, start = FALSE, both = TRUE)
+
+# you can specify a vector of widths, but if the vector is not the same length as the number of rows in the table the widths are recycled
+flank(ir, c(2, 3))
+```
+
+##### `reflect`
+
+```{r}
+ir
+rev(ir)
+reflect(ir, bounds = rev(ir))
+```
+
+##### `restrict`
+This function makes every range fall within the starting and ending bounds. Ranges that include the bounds are shortened and ranges that don't contain the bounds are dropped.
+
+```{r}
+ir
+restrict(ir, start = 2, end = 3)
+```
+
+##### `threebands`
+Similar to narrow, but instead of just returning the narrowed range, it also returns the leftover portions after the narrowing to the right and left of the narrowed range.
+
+```{r}
+ir
+threebands(ir, start = 1:5, width = 2)
+```
+
+##### Using +, -, and *
+You can change the size of a range by using +, -, or * to add on, subtract, or multipying each range by some number. All operations are performed on both the start and end of the range, so the number is effectively doubled.
+
+```{r}
+ir
+ir + 2
+ir - 1
+
+# when multiplying, positive contracts and negative expands (WHY DID WAS IT PROGRAMMED THAT WAY???)
+ir * 3
+ir * -3
+
+# can also supply a vector of values
+ir + seq_len(length(ir))
+
+```
+
+#### Making ranges disjoint
+##### `disjoint`
+Keeps all overlaps, but expands the IRanges object into the greatest possible number of ranges where all those overlaps still exist.
+
+```{r}
+ir
+disjoin(ir)
+```
+
+#### Set Operations
+These are IRanges-specific versions of the mathematical set operations complement, union, intersect, and difference
+
+##### `gaps` / `pgap`
+This is the IRanges version of complement. `gaps` gives all the ranges that are NOT covered by the IRanges object in the range you specify when calling `gaps`. `pgaps` gives the rowwise non-overlap of the ranges in two IRanges objects
+
+```{r}
+ir
+rev(ir)
+gaps(ir, start = 1, end = 50)
+pgap(ir, rev(ir))
+```
+
+##### `union` / `punion`
+`union` gives the only the overlapping portions of two IRanges objects, while `punion` combines the ranges and gives the entire range.
+
+```{r}
+ir
+rev(ir)
+union(ir, rev(ir))
+punion(ir, rev(ir), fill.gap = TRUE)
+```
+
+##### `intersect` / `pintersect`
+`intersect` gives longest possible intersecting ranges from two IRanges objects, `pintersect` gives the shortest possible intersecting ranges (?).
+
+```{r}
+ir
+rev(ir)
+intersect(ir, rev(ir))
+pintersect(ir, rev(ir), resolve.empty = "max.start")
+```
+
+##### `setdiff` / `psetdiff`
+`setdiff` gives the difference in ranges, returns ranges that are outside the entire range of the first object, while `psetdiff` does the opposite, so here `setdiff` returns nothing because the overall range of ir and its reverse are the same, while `psetdiff` returns ir because the ranges are the same, so everything from the first object is returned.
+
+```{r}
+ir
+rev(ir)
+setdiff(ir, rev(ir))
+psetdiff(ir, rev(ir))
+```
+
+## GRanges (GenomicRanges)
+*2018.09.20*
+
+From the GRanges vignette <https://kasperdanielhansen.github.io/genbioconductor/html/GenomicRanges_GRanges.html>
+
+### GRanges Basics
+GRanges contain information on
+
++ strand
+  + +, forward strand
+  + -, reverse strand
+  + *, unknown strand
++ sequence name
++ range
+    + start
+    + end
+    + width
+
+```{r}
+# make a GRanges object
+gr <- GRanges(seqnames = 'chr1', 
+              strand = c('+', '-', '+'), 
+              ranges = IRanges(start = c(1, 3, 5), width = 3))
+```
+
+Look at what you've just made.
+
+```{r}
+# you can just call a simple GRanges object
+gr
+
+# GRanges have their own special GRanges class
+class(gr)
+
+# GRanges are a special class of S4 objects
+typeof(gr)
+```
+
+Natural accessor functions (functions that get things) on the GRanges object
+
+```{r}
+# for an explanation of Rles see explanation under coverage on line 99
+
+# strand() gets strand information and returns a factor-Rle
+strand(gr)
+
+# seqnames() gets sequence name information and returns a factor-Rle
+seqnames(gr)
+
+# ranges() gets the IRanges object inside the GRanges object and returns an IRanges object
+ranges(gr)
+
+# start() gets the start position of each sequence and returns a vector
+GenomicAlignments::start(gr)
+
+# end() gets the end position of each sequence and returns a vector
+GenomicAlignments::end(gr)
+
+# width() gets the difference between the start and end position of each sequence and returns a vector
+width(gr)
+```
+
+Because there is strand information you can have operations that are relative to the direction of transcription. These are collectively referred to as "intra range transformations". These methods are inherited from IRanges, so see Transforming Ranges starting on line 131 for how they work. An example of how they work through GRanges is below with `GenomicRanges::flank()`
+
+```{r}
+# flank() returns a GRanges object with sequences that are the specified number of bases or whatever to the right/3' end irrespective of strand
+# compare original GRange with flanked GRange
+gr
+flank(gr, 2, start = FALSE)
+```
+
+### seqinfo
+
+Seqinfo is for getting, setting, and modifying sequence information. By sequence information, the package means:
+
+- sequence name (seqname) = either chromosome or contig
+- sequence length (seqlength) = number of base pairs or some other meaningful integer value
+- isCircular = TRUE would be a circular chromosome/contig, FALSE would be linear
+- genome = looks like it can store the whole GenomeDB object in seqinfo?
+
+Look at the example GRange's, gr's, sequence information
+
+```{r}
+seqinfo(gr)
+```
+
+Modify gr by using `seqlengths()` to add sequence length information
+
+```{r}
+seqlengths(gr) <- c('chr1' = 10)
+seqinfo(gr)
+```
+
+Look at individual sequence information with specific functions. These functions can be used to look at the information or to set the information (see above)
+
+```{r}
+# look at all the unique sequence names with seqlevels(); basically what unique chromosomes/contigs do I have?
+seqlevels(gr)
+
+# look at sequence lengths with seqlengths()
+seqlengths(gr)
+```
+
+### More examples with more chromosomes
+
+Add another chromosome onto gr as another level and change one of the existing ranges from chr1 to chr2, so we can have a slightly more realistic toy example. Also good example of renaming a range.
+
+```{r}
+# save gr as another GRange object so you can compare new and old
+gr2 <- gr
+seqlevels(gr2) <- c('chr1', 'chr2')
+seqnames(gr2) <- c('chr1', 'chr2', 'chr1')
+```
+
+Now when you `sort()` a GRanges object it sorts by seqname, then range, then strand.
+
+```{r}
+GenomicAlignments::sort(gr)
+GenomicAlignments::sort(gr2)
+```
+
+Add a genome to a GRange object. If you have a genome in the metadata, and you try to compare two GRanges from different genomes, you'll get an error
+
+```{r}
+genome(gr2) <- 'hg38'
+
+# make a third GRange for genome comparison
+gr3 <- gr2
+
+# assign gr3 the hg19 genome
+genome(gr3) <- 'hg19'
+
+# error when you try to compare
+findOverlaps(gr2, gr3)
+
+### you can run the code above, but this is the error you get
+#Error in mergeNamedAtomicVectors(genome(x), genome(y), what = c("sequence", : sequences chr1, chr2 have incompatible genomes: - in 'x': hg38, hg38 - in 'y': hg19, hg19
+```
+
+## plyranges: tidyverse style Ranges manipulation
+*2018.09.21*
+
+```{r}
+### generate a random IRange for practice
+# make a dataframe of random numbers
+set.seed(100)
+df <- data.frame(start = c(2:-1, 13:15),
+                 width = c(0:3, 2:0))
+
+# make an IRange object with the dataframe
+df %>% as_iranges() -> irng
+irng
+
+# make a GRange object with the dataframe
+df %>% mutate(seqnames = sample(c('chr1', 'chr2'), 7, replace = TRUE),
+              strand = sample(c('+', '-'), 7, replace = TRUE),
+              gc = runif(7)) %>%
+  as_granges() -> grng
+grng
+```
+
+### Arithmetic on Ranges
+
+#### `anchor_*()`
+
+Sometimes you'll want to chagne the width of a genomic interval. Most of the time you'll want to keep the start, end, or midpoint of the interval. plyranges makes it easy with `mutate()` plus `anchor_*` functions
+
+```{r}
+# make two new IRange/GRange objects for this section of the tutorial
+irng2 <- as_iranges(tibble(start = c(1, 2, 3), end = c(5, 2, 8)))
+grng2 <- as_granges(tibble(start = c(1, 2, 3), 
+                          end = c(5, 2, 8),
+                          seqnames = 'seq1',
+                          strand = c('+', '*', '-')))
+```
+
+##### Anchors with `mutate()`
+
+The default behavior for `mutate()` when you change the width is to keep the start of the range the same and change the end to make the range the width specified. With `anchor_*` you can decide what you want to keep and what you want to be modified when you change the width of the range.
+
+```{r}
+# original arithmetic IRange for comparison
+irng2
+
+# mutate without anchor
+mutate(irng2, width = 10)
+
+# mutate with anchor at start; does the same thing as mutate alone
+mutate(anchor_start(irng2), width = 10)
+
+# mutate with anchor at end
+mutate(anchor_end(irng2), width = 10)
+
+# mutate with anchor at center of range
+mutate(anchor_center(irng2), width = 10)
+```
+
+With GRanges, because you have strand information, there are more anchoring options. In addition to the examples above, you can anchor by the 5' or 3' end of the interval/range.
+
+```{r}
+# original arithmetic GRange for comparison
+grng2
+
+# mutate with anchor at 3' end of range
+mutate(anchor_3p(grng2), width = 10)
+
+# mutate with anchor at 5' end of range
+mutate(anchor_5p(grng2), width = 10)
+```
+
+##### Anchors with `stretch()`
+
+Instead of using `mutate()` and adding a column, you can widen an range using `stretch()`
+
+**IRanges**
+
+```{r}
+# original IRange for comparison
+irng2
+
+# stretch anchored in the center
+irng_stretch2 <- stretch(anchor_center(irng2), 10)
+irng_stretch2
+
+# streatch by 10, anchored at the end
+stretch(anchor_end(irng_stretch2), 10)
+
+# stretch by 10, anchored at the start
+stretch(anchor_start(irng_stretch2), 10)
+```
+
+**GRanges**
+*2018.09.25*
+
+Again, GRanges have the additional anchor options `anchor_3p()` and `anchor_5p()`
+
+```{r}
+# original arithmetic GRange for comparison
+grng2
+
+# mutate with anchor at 3' end of range
+stretch(anchor_3p(grng2), 10)
+
+# mutate with anchor at 5' end of range
+stretch(anchor_5p(grng2), 10)
+```
+
+#### `shift_*()`
+
+Shift the ranges in the direction specified by the word replacing the asterisk
+
+**IRanges**
+
+```{r}
+# original IRange for comparison purposes
+irng2
+
+# shift ranges left by 10
+shift_left(irng2, 10)
+
+# shift ranges right by 10
+shift_right(irng2, 10)
+```
+
+**GRanges**
+
+Can shift, in addition to left and right, by upstream/downstream because of the strand information in GRanges
+
+```{r}
+# original GRange for comparison
+grng2
+
+# shift ranges upstream by 10
+shift_upstream(grng2, 10)
+
+# shift ranges downstream by 10
+shift_downstream(grng2, 10)
+```
+
+**Note:** Doesn't shift ranges of length zero.
+
+### Grouping Ranges
+
+```{r}
+# make a GRange for this section
+tibble(seqnames = sample(c("chr1", "chr2"), 7, replace = TRUE),
+         strand = sample(c("+", "-"), 7, replace = TRUE),
+         gc = runif(7),
+         start = 1:7,
+         width = 10) %>%
+  as_granges() -> grng
+```
+
+```{r}
+# use group_by() to make a grouped Range object
+grng %>% group_by(strand) -> grng_by_strand
+```
+
+```{r}
+# look at the difference between not grouped and grouped GRange
+# they have different classes! the grouped one is of class GroupedGenomicRanges
+grng
+
+grng_by_strand
+```
+
+Grouped object lists the grouping and how many of them there are. Otherwise seem identical, but presumably the grouped object behaves like a table that has `dplyr::group_by()` called on it
+
+### Restricting Ranges
+
+**Filter**
+
+Filter ranges
+
+```{r}
+grng %>% filter(gc < 0.03)
+```
+
+Filter by group in a GroupedGenomicRange
+
+```{r}
+grng_by_strand %>% filter(gc == max(gc))
+```
+
+**Overlaps**
+
+Restrict overlapping ranges using `filter_by_overlaps()` and `filter_by_nonoverlaps()`
+
+```{r}
+# set up some dummy overlapping IRanges
+data.frame(start = c(5, 10 , 15, 20), width = 5) %>% as_iranges() -> ir0
+data.frame(start = 2:6, width = 3:7) %>% as_iranges() -> ir1
+
+ir0
+ir1
+```
+
+```{r}
+# filter by overlaps
+ir0 %>% filter_by_overlaps(ir1)
+
+# filter by nonoverlaps
+ir0 %>% filter_by_non_overlaps(ir1)
+```
+
+### Summarizing Ranges
+
+plyranges implements a `summarize()` function like dplyr's
+
+```{r}
+# summarize example on IRange
+ir1 %>% mutate(gc = runif(length(.))) -> ir1_a
+
+ir0 %>% group_by_overlaps(ir1_a) %>% summarize(gc = mean(gc))
+```
+
+### Joins
+
+```{r}
+# set up query and subject GRanges as examples for this section
+data.frame(seqnames = 'chr1', 
+           strand = c('+', '-'),
+           start = c(1, 9),
+           end = c(7, 10),
+           key.a = letters[1:2]) %>%
+  as_granges() -> query
+
+data.frame(seqnames = 'chr1',
+           strand = c('-', '+'),
+           start = c(2, 6),
+           end = c(4, 8),
+           key.b = LETTERS[1:2]) %>%
+  as_granges() -> subject
+```
+
+#### Basic joins
+
+##### `join_overlap_intersect()`
+
+Returns a Range object for any overlap. The start, end, and width numbers indicate any amount of overlap between the Ranges. 
+
+```{r}
+query
+subject
+
+join_overlap_intersect(query, subject) -> intersect_rng
+intersect_rng
+
+join_overlap_intersect(subject, query) -> rev_intersect_rng
+rev_intersect_rng
+```
+
+##### `join_overlap_inner()`
+
+Returns the *entire* Range in the query (first range supplied) that overlaps any Range in the subject (second range supplied)
+
+```{r}
+join_overlap_inner(query, subject) -> inner_rng
+inner_rng
+```
+
+##### `find_overlaps()`
+
+Does the same thing as `join_overlap_inner()`
+
+```{r}
+find_overlaps(query, subject)
+```
+
+##### `join_overlap_left()`
+
+Returns entire overlapping range from query Range like `find_overlap_inner()`, but also returns any nonoverlapping ranges from the query Range object as well.
+
+```{r}
+join_overlap_left(query, subject) -> left_rng
+left_rng
+```
+
+#### Finding your neighbors
+
+Finding the nearest, preceding, or following Ranges.
+
+##### `join_nearest()`
+
+```{r}
+ir0
+ir1
+
+join_nearest(ir0, ir1)
+```
+
+##### `join_follow()`
+
+```{r}
+join_follow(ir0, ir1)
+```
+
+##### `join_precede()`
+
+```{r}
+join_precede(ir0, ir1)
+```
+
+#### Dealing with multimapping
+
+Basically, after joining so that you have only single positions, count the positions for the number of multimaps.
+
+```{r}
+# make ranges objects for this demo
+data.frame(seqnames = 'VI', 
+           start = c(3320:3321,3330:3331,3341:3342),
+           width = 1) %>% 
+  as_granges() -> intensities
+intensities
+
+data.frame(seqnames = 'VI',
+           start = c(3322, 3030),
+           end = c(3846, 3338),
+           gene_id = c("YFL064C", "YFL065C")) %>%
+  as_granges() -> genes
+genes
+```
+
+```{r}
+join_overlap_inner(intensities, genes) %>% plyranges::select(gene_id) -> olap
+olap
+```
+
+Count number of positions with multiple "reads" at them
+
+```{r}
+olap %>%
+  group_by(start) %>%
+  summarize(n = n())
+```
+
+#### Grouping by overlaps
+
+Group by overlaps
+
+```{r}
+ir0 %>% group_by_overlaps(ir1) -> grp_by_overlap
+grp_by_overlap
+```
+
+And count the grouped overlaps
+
+```{r}
+grp_by_overlap %>% mutate(n_overlaps = n())
+```
+
+### Data Import/Output
+
+Convenience functions for reading specific biological file formats
+
+| Convenience Function | Readable/Writable File Extensions |
+| --- | --- |
+| `read_bam()` | .bam |
+| `read_bed()` / `write_bed()` | .bed |
+| `read_bedgraph()` / `write_bedgraph()` | .bedGraph, .bg |
+| `read_narrowpeaks()` / `write_narrowpeaks()` | .narrowPeak |
+| `read_gff()` / `write_gff()` | .gff, .gtf |
+| `read_bigwig()` / `write_bigwig()` | .bigWig, .bw |
+| `read_wig()` / `write_wig()` | .wig |
+
+### Mapping to GenomicRanges/IRanges
+
+See tutorial at <https://bioconductor.org/packages/release/bioc/vignettes/plyranges/inst/doc/an-introduction.html#9_mapping_to_genomicrangesiranges> for a summary of ways to map with plyranges.

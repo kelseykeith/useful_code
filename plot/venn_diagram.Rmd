@@ -1,45 +1,109 @@
 ---
-title: "Untitled"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
-
 library(tidyverse)
+library(magrittr)
+library(conflicted)
+
 library(eulerr)
+
+filter <- dplyr::filter
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Venn Diagrams with `eulerr`
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+The `eulerr` vignette is here: <https://rdrr.io/cran/eulerr/f/vignettes/introduction.Rmd>
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+### Basic Usage
 
-```{r cars}
-read_tsv('COL_pos_background.txt') %>% filter(chr == 'chr1') %>% mutate(sample_id = 'col') -> col_bkg
-
-read_tsv('LSI_pos_background.txt') %>% filter(chr == 'chr1') %>% mutate(sample_id = 'lsi') -> lsi_bkg
-
-comb_table <- full_join(lsi_bkg, col_bkg)
-```
-
-
+Let's use, as usual, iris as an example. Running the code in the chunk below, you can see that there is overlap in petal lengths for versicolor and virginica irises. We can use a venn diagram to visualize how many of the lengths measured overlap.
 
 ```{r}
-comb_table %>% 
-  unite(chr_base, chr, start, sep = '_') %>% 
-  spread(sample_id, chr_base) %>%
-  select(col, lsi, YL.gfp.pos.txt, OL.gfp.pos.txt, meth.diff, prom:shores) %>%
-  replace_na(list(col = 'none', lsi = 'none')) %>%
-  filter(prom == 1) %>%
-  summarize(inter = length(intersect(temp$col, temp$lsi)) - 1, 
-            col_uniq = length(setdiff(temp$col, temp$lsi)) - 1, 
-            lsi_uniq = length(setdiff(temp$lsi, temp$col)) - 1) -> venn_counts
-
-euler(c('A' = venn_counts$col_uniq, 'B' = venn_counts$lsi_uniq, 'A&B' = venn_counts$inter)) -> eul_fit
-
-plot(eul_fit)
+ggplot(iris, aes(x = Petal.Length, fill = Species)) +
+  geom_density(alpha = 0.5) +
+  labs(x = "Petal Length (in)") +
+  theme_classic()
 ```
+
+For a `eulerr` venn diagram, we need to count the number petal lengths that versicolor and virginica irises share, and the number of petal lengths that are unique to each species. This will really depend on your data, so you should match the output of a table of three numbers, rather than any specific portions of the code.
+
+```{r}
+iris %>%
+  filter(Species != 'setosa') %>%
+  select(Petal.Length, Species) %>%
+  group_by(Species, Petal.Length) %>%
+  count() %>%
+  ungroup() %>%
+  spread(Species, n) %>%
+  mutate(overlap = case_when(is.na(versicolor) == F & 
+                               is.na(virginica) == F ~ 'versicolor&virginica',
+                             is.numeric(versicolor) == T & 
+                               is.na(virginica) == T ~ 'versicolor',
+                             is.na(versicolor) == T & 
+                               is.numeric(virginica) == T ~ 'virginica')) %>%
+  group_by(overlap) %>%
+  count() %>%
+  ungroup() %>%
+  spread(overlap, n) -> petal_venn_nums
+```
+
+To make the venn diagram, specify the combinations in the `euler` function. You need to supply a vector with the names of the categories equal to their unique counts and a category1&category2 equal to the overlap counts.
+
+```{r}
+# supply the counts
+euler(combinations = c('versicolor' = petal_venn_nums$versicolor,
+                       'virginica' = petal_venn_nums$virginica,
+                       'versicolor&virginica' = 
+                         petal_venn_nums$`versicolor&virginica`)) -> euler_fit
+# plot
+plot(euler_fit)
+```
+
+### Make the Venn Diagram Prettier
+
+Add counts.
+
+```{r}
+plot(euler_fit,
+     quantities = T)
+```
+
+-
+
+Set font sizes.
+
+```{r}
+plot(euler_fit,
+     labels = list(fontsize = 28),
+     quantities = list(fontsize = 24))
+```
+
+-
+
+Set colors.
+
+```{r}
+plot(euler_fit,
+     fills = list(fill = c("dodgerblue4", "darkgoldenrod1"), alpha = 0.7),
+     labels = list(fontsize = 28),
+     quantities = list(fontsize = 24))
+```
+
+-
+
+Use ellipses instead of circles. To put it another way, make the shape proportional to the count (doesn't do much here because there's not much difference.)
+
+```{r}
+plot(euler_fit,
+     fills = list(fill = c("dodgerblue4", "darkgoldenrod1"), alpha = 0.7),
+     labels = list(fontsize = 28),
+     quantities = list(fontsize = 24),
+     shape = 'ellipse')
+```
+
+
 
