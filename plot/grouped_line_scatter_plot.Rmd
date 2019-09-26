@@ -1,0 +1,63 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(conflicted)
+
+filter <- dplyr::filter
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## How to Make a Grouped Line and Scatterplot
+
+How to make an Excel-like horizontal line plot using `ggplot`
+
+### Read In Data
+
+We're going to use the table in the same folder as this .Rmd, `grouped_lin_scatter_plot_example.txt` for this demo. The example table has (real) methylation data for 10 CpG sites. The columns are:
+
+- **chr_base** = chromosome and position of the CpG site
+- **young** = average methylation (from duplicates) in young mice
+- **middle** = average methylation (from duplicates) in middle-aged, 12mo, mice
+- **old** = average methylation (from duplicates) in old, 24 mo, mice
+- **gene** = the gene the CpG is located in or is closest to
+
+```{r}
+read_tsv('grouped_line_scatter_plot_example.txt') -> data
+```
+
+### Plot
+
+The key to getting the lines to run horizontally is to have a categorical variable on the x-axis, a numeric variable on the y-axis, and a **second categorical variable you can use as the group.**
+
+```{r}
+# First, the data is not skinny; young, middle, and old are the same variable,
+# so you need to gather them together
+data %>%
+  gather(age, mean, young:old) %>%
+# And set the ages as factors so they're ordered correctly on the plot
+  mutate(age = factor(age, levels = c('young', 'middle', 'old'))) %>%
+
+# Plot! Age on the x-axis, mean methylation on the y-axis and group by either 
+# the location (what I did here), or the gene would be another option. The group
+# aesthetic will make the lines run horizontally across the groups, rather than
+# connecting everything in the x-axis variables together
+ggplot(aes(x = age, y = mean, group = chr_base)) +
+  geom_line() +
+# It doesn't matter very much what order you put the line and point geoms in, 
+# but if you put point after line the points will sit on top of the lines which 
+# I think looks better.
+  geom_point(size = 3, aes(color = age)) +
+# change the point colors for fun
+  scale_color_manual(values = c('royalblue3', 'palevioletred3', 'goldenrod3')) +
+  labs(x = 'age', y = 'methylation') +
+  theme_classic(base_size = 16)+
+  theme(axis.text.x = element_text(size = 8),
+        legend.position = 'none') 
+```
+
+
