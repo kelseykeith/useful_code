@@ -1,0 +1,143 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(conflicted)
+
+filter <- dplyr:: filter
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Manhattan Plot w/ `ggplot2`
+
+How to make a manhattan plot with `ggplot2`! With help from Daniel Roelf's blog post "How I Create Manhattan Plots Using ggplot" <http://www.danielroelfs.com/coding/manhattan_plots/>
+
+### Simulate Data
+
+Make some fake data to use in this example.
+
+```{r}
+# Make a column for the chromosome. There are an uneven number of fake 
+# positions on each chromosome to roughly reflect the uneven sizes of the 
+# actual chromosomes. Autosomal chromosomes only because I got tired of typing
+# and you frequently only do the autosomal chromosomes anyway.
+data <- tibble(chr = c(rep('chr1', 1000), rep('chr2', 975), rep('chr3', 950),
+                       rep('chr4', 925), rep('chr5', 900), rep('chr6', 875),
+                       rep('chr7', 850), rep('chr8', 825), rep('chr9', 775),
+                       rep('chr10', 750), rep('chr11', 800), rep('chr12', 725),
+                       rep('chr13', 700), rep('chr14', 675), rep('chr15', 650),
+                       rep('chr16', 625), rep('chr17', 600), rep('chr18', 575),
+                       rep('chr19', 550), rep('chr20', 525),
+                       rep('chr21', 475), rep('chr22', 500)),
+# Simulate the positions from a random uniform distribution.
+               start = c(runif(1000, min = 10000, max = 248856422), # chr1
+                         runif(975, min = 10000, max = 242093529),  # chr2
+                         runif(950, min = 10000, max = 198195559),  # chr3
+                         runif(925, min = 10000, max = 190114555),  # chr4
+                         runif(900, min = 10000, max = 181438259),  # chr5
+                         runif(875, min = 10000, max = 170705979),  # chr6
+                         runif(850, min = 10000, max = 159245973),  # chr7
+                         runif(825, min = 10000, max = 145038636),  # chr8
+                         runif(775, min = 10000, max = 138294717),  # chr9
+                         runif(750, min = 10000, max = 133697422),  # chr10
+                         runif(800, min = 10000, max = 134986622),  # chr11
+                         runif(725, min = 10000, max = 133175309),  # chr12
+                         runif(700, min = 10000, max = 114264328),  # chr13
+                         runif(675, min = 10000, max = 106943718),  # chr14
+                         runif(650, min = 10000, max = 101891189),  # chr15
+                         runif(625, min = 10000, max = 90238345),   # chr16
+                         runif(600, min = 10000, max = 83157441),   # chr17
+                         runif(575, min = 10000, max = 80273285),   # chr18
+                         runif(550, min = 10000, max = 58517616),   # chr19
+                         runif(525, min = 10000, max = 64344167),   # chr20
+                         runif(475, min = 10000, max = 46609983),   # chr21
+                         runif(500, min = 10000, max = 50718468)),  # chr22
+# Simulate the results of a hypothesis test by randomly sampling from a normal
+# distribution and making a fake t statistic.
+               tstat = rnorm(16225),
+# Transform the simulated t statisics into pvalues.
+               pvalue = pnorm(tstat))
+```
+
+### Wrangle Data for Manhattan Plot
+
+In order for the data to line up correctly on the x-axis of the manhattan plot, you need to plot the cumulative sum of the start positions, instead of the straight start positions. Also, the pvalues need to be transformed to negative log10 pvalues, so more significant sites are plotted at the top.
+
+```{r}
+data %>%
+# Need to make the chromosomes factors so they sort in the correct order, chr1, 
+# chr2, chr3, ... , instead of chr1, chr10, chr11
+  mutate(chr = factor(chr, 
+                      levels = c('chr1', 'chr2', 'chr3', 'chr4', 'chr5',
+                                 'chr6', 'chr7', 'chr8', 'chr9', 'chr10',
+                                 'chr11', 'chr12', 'chr13', 'chr14',
+                                 'chr15', 'chr16', 'chr17', 'chr18',
+                                 'chr19', 'chr20', 'chr21', 'chr22')),
+# log the pvalues for plotting
+         log_pvalue = -log10(pvalue)) %>%
+# Arrange by the factor chromosomes, then the start, so the cumulative start
+# position is calculated in the correct order.
+  arrange(chr, start) %>%
+# Add on a column with the cumulative start position for each data point. Used 
+# the idea of the cumulative from Daniel Roelf's blog post (link above), but
+# found the cumsum() function through this post http://www.sthda.com/english/articles/17-tips-tricks/57-dplyr-how-to-add-cumulative-sums-by-groups-into-a-data-framee/
+  mutate(cum_start = cumsum(start)) -> data_man_wrangled
+```
+
+Since we're plotting the cumulative sum of the start positions on the x-axis, `ggplot()` will return a continuous numeric x-axis. But we don't want that, we want the chromosome number on the x-axis. `ggplot()` let's us specify our own x-axis labels though! We'll put the custom labels in their own table in the chunk below. Code modified from Daniel Roelf's manhattan plot post (link above).
+
+```{r}
+data_man_wrangled %>%
+# Group by chromosome and calculate the central position for each chromsome to
+# give the nicely centered position for each chromosome label.
+  group_by(chr) %>%
+  summarise(cum_start = ((max(cum_start) + min(cum_start)) / 2)) %>%
+  ungroup() %>%
+# Remove the chr prefix from the chromosome names since it gets crowded once 
+# the chromosomes get smaller and the numbers alone will fit better.
+  separate(chr, into = c('prefix', 'chr'), sep = 3) -> man_x_labels
+```
+
+### Manhattan Plot
+
+Plot the manhattan plot!
+
+```{r, fig.width = 10, fig.height = 5}
+# Plot with the cumulative start on the x-axis and the -log10 pvalues on the y axis
+ggplot(data_man_wrangled, aes(x = cum_start, y = log_pvalue)) +
+# Color by chromosome
+  geom_point(aes(color = chr)) +
+# Manually specify the chromosome colors. Here they're striped like a classic
+# manhattan plot
+  scale_color_manual(values = rep(c('darkslateblue', 'cadetblue'), 11)) +
+# Add a significance threshold line. Here it's entirely arbitrary.
+  geom_hline(yintercept = -log10(0.01), linetype = 'dashed', color = 'gray40') +
+# Using scale_x_continuous(), you can set custom labels for the x axis. 
+# Specify the names (labels) of the custom x-axis labels and their positions 
+# (breaks) in scale_x_continuous().
+  scale_x_continuous(label = man_x_labels$chr, 
+                     breaks = man_x_labels$cum_start) +
+# set the axis names
+  labs(x = 'Chromosome', y = '-Log10(PValue)') +
+# theme_minimal() looks better and more like a classic manhattan plot in my 
+# (and Daniel Roelf's) opinion because there isn't a gap between the x-axis and
+# the points
+  theme_minimal() +
+# No legend
+  theme(legend.position = 'none',
+# get rid of a lot of the background grid that comes with theme_minimal(),
+# because it's uneven and doesn't look good with the different chromosome sizes
+       panel.border = element_blank(),
+       panel.grid.major.x = element_blank(),
+       panel.grid.minor.x = element_blank(),
+# Set the size and the angle of the chromosome names, especially to make them 
+# readable in the crowded smaller chromosomes
+       axis.text.x = element_text(angle = 60, size = 8, vjust = 0.5),
+# Make the axis names larger
+       axis.title = element_text(size = 24))
+```
+
+<br><br>
