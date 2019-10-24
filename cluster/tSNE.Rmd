@@ -1,0 +1,66 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(conflicted)
+
+library(Rtsne)
+
+filter <- dplyr::filter
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## How to Run a t-SNE
+
+t-Distributed Stochastic Neighbor Embedding (t-SNE) is a dimension reduction technique. The idea is to take a set of data that is so complex it only has a solution in multi-dimensional space and find a representation of those points in 2 (or 3) dimensional space. t-SNEs are non-linear and adapt to the underlying data, so you will NOT get exactly the same representation twice, even on exactly the same data. The other thing that's important to understand is the **perplexity**. It's a tuneable parameter that (roughly) tells the algorithm how to balance clustering locally vs. globally. For a great description of what the t-SNE algorithm is, what it does, and how the different parameters affect the outcome, check out this machine learning's blog's post [How to Use t-SNE Effectively](https://distill.pub/2016/misread-tsne/)
+
+### Setup
+
+You need the `Rtsne` package for the function to run a tSNE, so if you don't have it installed, uncomment the code in this chunk and install it.
+
+```{r}
+#install.packages('Rtsne')
+```
+
+### Wrangle Data
+
+We're going to use the famous iris dataset for this example! The tSNE matrix needs samples, in this case flowers, as the rows and the data, in this case flower measurements as the columns. We're good, except for the categorical species column. The table needs to be completely numeric, so we'll remove the species column before running the tSNE.
+
+```{r}
+iris %>% select(-Species) -> iris_num
+```
+
+### Run the tSNE
+
+By default, `Rtsne()` runs at `perplexity = 30` and returns `dims = 2`. Feel free to play around with the parameters, but the iris dataset is so simple changing the perplexity doesn't change the results. In more complicated data, for example single cell RNA-seq, changing the perplexity will change the clustering quite a bit. Also, you basically have to set `check_duplicates = F`. If any number is repeated anywhere in the matrix, it will throw an error and refuse to calculate the tSNE. You can remove the `check_duplicates` argument in the code chunk below and try it if you want!
+
+```{r}
+Rtsne(iris_num, check_duplicates = F) -> iris_tsne
+```
+
+-
+
+Combine the tSNE vectors back with the original data for plotting. You can get the vectors out of the object with `$` subsetting - they're in the `Y` table. This isn't strictly necessary, but 99% of the time we'll want to color by some known feature of the data, so it's best to combine them.
+
+```{r}
+cbind(iris, iris_tsne$Y) %>%
+  rename(tSNE1 = `1`, tSNE2 = `2`) -> iris_tsne_wrangled
+```
+
+### Visualize
+
+Scatterplot of the tSNE vectors, color by iris species.
+
+```{r}
+ggplot(iris_tsne_wrangled, aes(x = tSNE1, y = tSNE2)) +
+  geom_point(aes(color = Species), size = 3) +
+  theme_classic(base_size = 24)
+```
+
+
+<br><br>
+

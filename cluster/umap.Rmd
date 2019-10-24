@@ -1,0 +1,146 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(conflicted)
+
+library(umap)
+
+filter <- dplyr::filter
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## How to Run a UMAP
+
+Uniform Manifold Approximation and Projection (UMAP) is an dimensionality reduction algorithm similar to a tSNE. The advantage of UMAP over tSNE is that UMAPs are more reproducible and their results can be applied to other data. For more information, see the `umap` package [vignette](https://cran.r-project.org/web/packages/umap/vignettes/umap.html)
+
+### Setup
+
+You need the `umap` package for the function to run a UMAP, so if you don't have it installed, uncomment the code in this chunk and install it.
+
+```{r}
+#install.packages('umap')
+```
+
+### Wrangle Data
+
+We're going to use the famous iris dataset for this example! The UMAP matrix needs samples, in this case flowers, as the rows and the data, in this case flower measurements as the columns. We're good, except for the categorical species column. The table needs to be completely numeric, so we'll remove the species column before running the UMAP.
+
+```{r}
+iris %>% select(-Species) -> iris_num
+```
+
+### Run the UMAP
+
+Once you have the numeric matrix, that's the only argument you need to supply! There's a lot of complicated parameter tuning you can do (see the package vignette for more details), but mostly you'll just want to use the defaults.
+
+```{r}
+umap(iris_num) -> iris_umap
+```
+
+#### Results
+
+The object `umap` creates is a list of four tables. The tables are:
+
+1.
+2.
+3. 
+4. 
+
+Let's take a closer look at them!
+
+-
+
+`umap()`'s layout table has the vectors to use for plotting. This is the part we'll primarily want to use.
+
+```{r}
+iris_umap$layout %>% head()
+```
+
+`umap()` also puts the original data in the result object and stores it in the data table.
+
+```{r}
+iris_umap$data %>% head()
+```
+
+Part of how `umap()` clusters data is by using the k-nearest neighbors (KNN) algorithm. It stores the indices and distances it calculates as part of KNN in the knn table.
+
+```{r}
+# KNN indicies
+iris_umap$knn$indexes %>% head()
+
+# KNN distances
+iris_umap$knn$distances %>% head()
+```
+
+Finally, `umap()` puts what configuration it was run under in the config object. You can also subset vectors containing the actual parameters from it.
+
+```{r}
+# it will print all the parameters for you
+iris_umap$config
+
+# You can also get a vector for each of the parameters by subsetting further.
+# For example, the number of nearest neighbors.
+iris_umap$config$n_neighbors
+```
+
+#### Wrangle Data and Results
+
+Combine the UMAP vectors back with the original data for plotting, but combining the layout table with the original data. This isn't strictly necessary, but 99% of the time we'll want to color by some known feature of the data, so it's best to combine them.
+
+```{r}
+cbind(iris, iris_umap$layout) %>%
+  rename(UMAP1 = `1`, UMAP2 = `2`) -> iris_umap_wrangled
+```
+
+### Visualize
+
+Scatterplot of the UMAP projection vectors, colored by iris species.
+
+```{r}
+ggplot(iris_umap_wrangled, aes(x = UMAP1, y = UMAP2)) +
+  geom_point(aes(color = Species), size = 3) +
+  theme_classic(base_size = 24)
+```
+
+### Project UMAP Model Onto Other Data
+
+First, we need to fake some data to project onto. 
+
+```{r}
+# add some noise to the iris data; the matrix() code here was copied from the 
+# umap vignette
+data.frame(iris_num + matrix(rnorm(150*40, 0, 0.1), ncol = 4)) %>% 
+# add the "species" information so we'll have something to color by
+  cbind(species = iris$Species) %>%
+# only take some data; tables don't need to be the same size
+  sample_n(50) -> fake_data
+```
+
+Next, use `predict()` to apply the iris umap model onto the new data and wrangle it into a plottable format. Predict only returns the vectors for plotting.
+
+```{r}
+# Apply the predictions onto fake data (without the species column because it 
+# must be all numeric just like when running the umap originally)
+predict(iris_umap, select(fake_data, -species)) %>%
+# convert to table instead of matrix
+  as_tibble() %>%
+# rename the UMAP columns
+  rename(UMAP1 = V1, UMAP2 = V2) %>%
+# add the species information back to color the plot by
+  cbind(species = fake_data$species) -> fake_data_umap_applied
+```
+
+Last, plot the UMAP scatterplot! You can see the species of iris wind up in the same clusters.
+
+```{r}
+ggplot(fake_data_umap_applied, aes(x = UMAP1, y = UMAP2)) +
+  geom_point(aes(color = species), size = 3) +
+  theme_classic(base_size = 24)
+```
+
+
