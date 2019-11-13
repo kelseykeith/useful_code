@@ -1,0 +1,88 @@
+
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(conflicted)
+
+filter <- dplyr::filter
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Volcano Plot
+
+### Fake Data
+
+You need the `TeachingDemos` package to simulate pvalues, so if you don't have it installed, uncomment the code in the chunk below and install it.
+
+```{r}
+#install.packages('TeachingDemos')
+```
+
+Simulate pvalues and methylation differences
+
+```{r}
+tibble(pvalue = TeachingDemos::Pvalue.norm.sim(n = 10000),
+       meth_diff = rnorm(10000, mean = 0, sd = 15)) -> fake_data
+```
+
+### Wrangle Data
+
+Wrangle the fake methylation data for plotting
+
+```{r}
+fake_data %>%
+  mutate(logpvalue = -log10(pvalue),
+         sig = case_when(pvalue < 0.05 & meth_diff < -5 ~ 'hypo',
+                         pvalue < 0.05 & meth_diff > 5 ~ 'hyper',
+                         TRUE ~ 'not_sig')) -> wrangled_fake_data
+```
+
+### Plot
+
+Get labels for plot. Labels with have the count of "significant" sites and the total percentage those "significant" sites are
+
+```{r}
+wrangled_fake_data %>% 
+# count the number of significant hyper- and hypo- methylated sites
+  group_by(sig) %>% 
+  count() %>% 
+  ungroup() %>%
+  filter(sig != 'not_sig') %>%
+# column sets location on the x-axis; needs to have the same name as the x-axis 
+# column name in the main tablece
+  mutate(meth_diff = c(30, -30), 
+# column sets location on the y-axis; needs to have the same name as the y-axis 
+# column name in the main table
+         logpvalue = 3.5,
+# calculate what percentage the counts are and round to the nearest 1 decimal 
+# place and combine it with the count to make the labels
+         label = paste0(n, 
+                        ', ', 
+                        round(((n / nrow(wrangled_fake_data)) * 100), 1), 
+                        '%')) -> labels
+```
+
+Plot the volcano plot. (**NOTE:** Because the data is re-simulated every time the document is run, some parts of the plot might not look the best, like the placement of labels or the symmetry of the x-axis. This can be adjusted for your own non-simulated data.)
+
+```{r, fig.width = 6, fig.height = 6}
+ggplot(wrangled_fake_data, aes(x = meth_diff, y = logpvalue)) +
+  geom_point(aes(color = sig), size = 2) +
+  scale_color_manual(values = c('darkgoldenrod3', 'deepskyblue4', 'gray60')) +
+  geom_text(data = labels, aes(label = label), size = 8) +
+  geom_vline(xintercept = c(-5, 5), 
+             color = 'gray40', 
+             linetype = c('dashed')) +
+  geom_hline(yintercept = -log10(0.05), 
+             color = 'gray40', 
+             linetype = 'dashed') +
+  labs(x = 'Difference in % Methylation',
+       y = '-Log10 PValue') +
+  theme_classic(base_size = 20) +
+  theme(legend.position = 'none')
+```
+
