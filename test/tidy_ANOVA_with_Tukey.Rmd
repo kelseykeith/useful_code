@@ -1,0 +1,76 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(conflicted)
+
+library(broom)
+
+filter <- dplyr::filter
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Tidy ANOVA
+
+Code to run a tidy ANOVA with a post-hoc Tukey test
+
+### Fake Data
+
+Fake methylation data for 3 CpG sites in 3 different tissues.
+
+```{r}
+tibble(organ = rep(c(rep(c('blood', 'kidney', 'liver'), each = 3)), 3),
+       chr = c(rep('chr2', 9), rep('chr12', 9), rep('chr14', 9)),
+       start = c(rep(34613, 9), rep(235093, 9), rep(135987, 9)),
+       meth_perc = c(5, 10, 11, 55, 67, 44, 88, 90, 95,
+                     6, 10, 14, 85, 90, 77, 23, 45, 66,
+                     20, 24, 25, 34, 33, 32, 90, 88, 92)) -> fake_meth_data
+```
+
+### Tidy ANOVA with Post-Hoc Tukey Test
+
+Test the difference in methylation at each CpG site over the different tissues.
+
+```{r}
+fake_meth_data %>%
+# group by location and nest so you can map the test over the subtables
+  group_by(chr, start) %>%
+  nest() %>%
+# run the ANOVA; the try() function will let the loop continue if any locations
+# can't be tested and fail for some reason
+  mutate(test = purrr::map(data, ~ try(aov(meth_perc ~ organ, data = .))),
+# check the class of the test column and filter out any tests that failed
+         class = purrr::map(test, ~ class(.))) %>%
+  unnest(class) %>%
+  filter(class != 'try-error') %>%
+  select(-class) %>%
+# do the post-hoc Tukey test
+  mutate(test = purrr::map(test, ~ TukeyHSD(.)),
+# tidy the results, so they will be in tabular format and can be unnested
+         test = purrr::map(test, ~ broom::tidy(.))) %>%
+# unnest the test results and drop the data column so it's a regular 
+# rectangular table again
+  unnest(test) %>%
+  select(-data) -> anova
+```
+
+-
+
+Let's look at the results! `broom::tidy()` returns standard columns, so for ANOVA with a post-hoc Tukey test, the following columns contain.
+
+- **term** = the term given in the ANOVA `aov()` to run the test over; here we just tested over different organs, but there can be multiple covariates given and then there would be multiple terms in the column
+- **comparison** = which of the factors / groups in the term column are being compared
+- **estimate** = difference in means between the groups given in the comparison column; the order in the comparison column matters, for example if it has "kidney-blood" in the comparison column the difference in means is the mean of the kidney samples - the mean of the blood samples
+- **conf.low** = lower boundary of the confidence interval for the estimated difference in means
+- **conf.high** = upper boundary of the confidence interval for the estimated difference in means
+- **adj.p.value** = p-values are already corrected using Tukey's HSD method (that's why the function is `TukeyHSD()`)
+
+```{r}
+anova
+```
+
+

@@ -1,0 +1,91 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(conflicted)
+
+filter <- dplyr::filter
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Use the `rtracklayer` Implementation of `liftOver` to Translate Genomic Coordinates from One Genome to Another
+
+
+
+### Necessary Packages
+
+This example script needs `plyranges`, `ensembldb`, and `liftOver` to run. If you don't have them installed, uncomment the code in the chunk below and install them.
+
+```{r}
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# BiocManager::install("plyranges")
+# BiocManager::install("liftOver")
+# BiocManager::install("ensembldb")
+```
+
+### Fake Some Data
+
+```{r}
+data <- tibble(chr = c("chrX", "chrX", "chr2", "chr19", "chr11", 
+                       "chr12", "chr11", "chr3", "chr11", "chr3", 
+                       "chr18", "chr7", "chr19", "chr5", "chr18", 
+                       "chr16", "chr16", "chr16", "chr1", "chr10"),
+               start = c(71375245, 56564560, 27523147, 18266096, 120330000, 
+                         18371281, 63562657, 52349069, 56123032, 169143897, 
+                         34821023, 8218442, 1627411, 147661139, 3456514, 
+                         89288827, 2085026, 70268441, 44412710, 564904),
+               end = c(71375245, 56564560, 27523147, 18266096, 120330000, 
+                       18371281, 63562657, 52349069, 56123032, 169143897, 
+                       34821023, 8218442, 1627411, 147661139, 3456516, 
+                       89288827, 2085026, 70268441, 44412710, 5649048),
+               gene = c("TAF1", "UBQLN2", "GCKR", "IQCN", "TMEM136", 
+                        "PIK3C2G", "HRASLS2", "DNAH1", "OR8H3", "MECOM", 
+                        "DTNA", "ICA1", "TCF3", "JAKMIP2", "TGIF1", 
+                        "ANKRD11", "TSC2", "AARS", "RNF220", "ASB13" ))
+```
+
+#### Make it Into a GRange for `liftOver()`
+
+```{r}
+data %>%
+  plyranges::as_granges(seqnames = chr) -> data_grange
+
+### set the chromosome style; required for liftOver
+# UCSC for chromosomes starting with chr
+ensembldb::seqlevelsStyle(data_grange) = "UCSC"
+```
+
+### Convert the Coordinates
+
+#### Load the Chain Files for `liftOver`
+
+```{r}
+### Get chain files for liftOver
+# get the path to the chain file
+liftover_path = system.file(package = 'liftOver', 
+                            'extdata', 
+                            'hg38ToHg19.over.chain')
+
+# load the chain file
+ch = rtracklayer::import.chain(liftover_path)
+```
+
+#### Convert
+
+```{r}
+data_grange_hg19 <- rtracklayer::liftOver(data_grange, ch)
+```
+
+#### Look at your results!
+
+```{r}
+data_grange_hg19 %>% as_tibble()
+```
+
+
+
