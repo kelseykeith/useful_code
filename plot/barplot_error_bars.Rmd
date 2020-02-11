@@ -1,0 +1,65 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## How to Add Error Bars on a `ggplot2` Bar Plot
+
+Simple bar plot
+
+```{r, fig.width = 3, fig.height = 3}
+iris %>%
+  group_by(Species) %>%
+  summarize(avg_pet_width = mean(Petal.Width),
+            sd_pet_width = sd(Petal.Width)) %>%
+  ungroup() %>%
+
+ggplot(aes(x = Species, y = avg_pet_width)) +
+# geom_col() takes the number and plots a bar that high instead of having to 
+# use the argument "stat = 'identity'" in geom_bar()
+  geom_col(aes(fill = Species)) +
+# have to supply the start and end of the error bar, which should be the mean
+# =/- either standard deviation or standard error
+  geom_errorbar(aes(ymin = avg_pet_width - sd_pet_width, 
+                    ymax = avg_pet_width + sd_pet_width),
+# sets the width of the crossbar
+                width = 0.2) +
+  theme_classic() +
+  theme(legend.position = 'none')
+```
+
+Dodged bar plot
+
+```{r, fig.width = 3.5, fig.height = 3}
+iris %>%
+# make an additional categorial column, so I have another column to dodge on
+  mutate(petal_size = case_when(Petal.Length < 1.6 ~ 'small',
+                                Petal.Length >= 1.6 & 
+                                  Petal.Length < 5.1 ~ 'medium',
+                                Petal.Length >= 5.1 ~ 'large')) %>%
+  group_by(Species, petal_size) %>%
+  summarize(avg_pet_width = mean(Petal.Width),
+            sd_pet_width = sd(Petal.Width)) %>%
+  ungroup() %>%
+
+# Note that the large versicolor bar doesn't have error bars; it has only one 
+# value in it, so standard deviation cannot be computed. If you need to remove
+# error bars on a single bar or a few bars could set the sd to NA
+ggplot(aes(x = Species, y = avg_pet_width, fill = petal_size)) +
+  geom_col(position = 'dodge') +
+  geom_errorbar(aes(ymin = avg_pet_width - sd_pet_width, 
+                    ymax = avg_pet_width + sd_pet_width),
+                width = 0.2,
+# Need this argument so the error bars are centered on the dodged bars and not
+# on the categorical value on the x-axis. 0.9 seems to look good
+                position = position_dodge(0.9)) +
+  theme_classic()
+```
+
+
+

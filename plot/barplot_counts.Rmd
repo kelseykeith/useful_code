@@ -1,0 +1,25 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Bar Plot with Counts Example
+
+From this stack overflow post <https://stackoverflow.com/questions/26553526/how-to-add-frequency-count-labels-to-the-bars-in-a-bar-graph-using-ggplot2>
+
+```{r, fig.width = 3, fig.height = 3}
+ggplot(iris, aes(x = Species)) +
+  geom_bar(aes(fill = Species), color = 'black') +
+# adds the counts
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -1) +
+# might need to adjust the plot area so the counts are nicely visible
+  coord_cartesian(ylim = c(0, 55)) +
+  theme_classic() +
+  theme(legend.position = 'none')
+
+```

@@ -1,0 +1,18 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Get a Vector of Column Names
+
+```{r}
+# command
+paste(colnames(iris), collapse = ', ')
+
+# save as a vector for later use
+paste(colnames(iris), collapse = ', ') -> iris_colnames
+```
+
