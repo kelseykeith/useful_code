@@ -24,9 +24,10 @@ UpSetR documentation here: <https://github.com/hms-dbmi/UpSetR>
 
 ### Set Up
 
-Fake methylation data! for the the tutorial
+Fake methylation data in DREAM formate for the the tutorial
 
 ```{r}
+set.seed(42)
 tibble(sma_id = 'SmaI_mm9',
        site_number = rep(sample(1000), 3),
        sample = factor(rep(c('cond1', 'cond2', 'cond3'), each = 1000),
@@ -230,6 +231,87 @@ upset(upset_tbl,
       text.scale = c(1, 2, 1, 1, 2, 2))
 #)
 ```
+
+### Color the Column by Some Variable
+*2020-02-12*
+
+You might want to visualize another dimension of data by coloring the columns by some variable
+
+```{r}
+set.seed(42)
+upset_tbl %>%
+# Have to add another variable in since there wasn't one
+# For example, Is the site associated with age?
+  mutate(assoc_age = sample(c('yes', 'no'), replace = TRUE, size = nrow(.))) %>%
+# For the elements query in upset() the column must be numeric. I deliberately 
+# coded age as words, so I could explain here
+# ALSO, as I discovered the hard way, you cannot code this column as 0 and 1
+# because you'll get the error 
+# "Error in `[.data.frame`(data1, , test) : undefined columns selected"
+# But any other combination of numbers is fine
+  mutate(age_num = ifelse(assoc_age == 'yes', 1, -1),
+         random = sample(1:3, replace = TRUE, size = nrow(.))) -> upset_tbl2
+
+upset(upset_tbl2, 
+      sets = c('cond1_hypo', 'cond2_hypo', 'cond3_hypo'),
+     keep.order = T,
+     order.by = 'degree',
+     mainbar.y.label = '',
+     sets.bar.color = c('magenta4', 'sienna2', 'green4'),
+     text.scale = c(1, 2, 1, 1, 2, 2),
+# use the queries argument to color the bars
+     queries = list(list(query = elements,
+# In params you put the column name in quotes and then the parameter from the 
+# column you want to count. If you want to count more than one parameter, list
+# them in a vector, c()
+                         params = list('age_num', 1),
+# If active = T, the bars are colored, if active = F, a triangle is placed at 
+# the division on the bars
+                         active = T,
+# Set the name for the legend
+                         query.name = 'age',
+# Set the color to put on the bars
+                         color = 'dodgerblue3')),
+# Unless you specify a location for the query legend, it won't be plotted;
+# options are 'none' (default), 'top', or 'bottom'
+     query.legend = 'top',
+     main.bar.color = 'gray60')
+
+
+# If you want to add another thing to color by, another query, add another 
+# list() inside of the query list
+
+upset(upset_tbl2, 
+      sets = c('cond1_hypo', 'cond2_hypo', 'cond3_hypo'),
+     keep.order = T,
+     order.by = 'degree',
+     mainbar.y.label = '',
+     sets.bar.color = c('magenta4', 'sienna2', 'green4'),
+     text.scale = c(1, 2, 1, 1, 2, 2),
+# Order matters! upset() doesn't stack the queries, so you should put the 
+# largest one first so the colors will stack in front of each other
+# color 1
+     queries = list(list(query = elements,
+                         params = list('random', c(1, 2)),
+                         active = T,
+                         query.name = 'age',
+                         color = 'dodgerblue3'),
+# color 2
+                    list(query = elements,
+                         params = list('age_num', c(1)),
+                         active = T,
+                         query.name = 'random_variable',
+                         color = 'firebrick3')),
+     query.legend = 'top',
+     main.bar.color = 'gray60')
+```
+
+
+
+
+
+
+
 
 
 
