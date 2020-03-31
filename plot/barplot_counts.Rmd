@@ -10,6 +10,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Bar Plot with Counts Example
 
+### `geom_bar()` Counts for You
+
 From this stack overflow post <https://stackoverflow.com/questions/26553526/how-to-add-frequency-count-labels-to-the-bars-in-a-bar-graph-using-ggplot2>
 
 ```{r, fig.width = 3, fig.height = 3}
@@ -21,5 +23,42 @@ ggplot(iris, aes(x = Species)) +
   coord_cartesian(ylim = c(0, 55)) +
   theme_classic() +
   theme(legend.position = 'none')
-
 ```
+
+<br>
+
+### With Pre-Computed Counts
+
+Count the species in iris.
+
+```{r}
+iris %>%
+  count(Species) -> iris_count
+```
+
+```{r, fig.width = 3, fig.height = 3}
+### geom_col()
+ggplot(iris_count, aes(x = Species, y = n)) +
+  geom_col(aes(fill = Species), color = 'black') +
+# adds the counts
+  geom_text(aes(label = n), vjust = -1) +
+# might need to adjust the plot area so the counts are nicely visible
+  coord_cartesian(ylim = c(0, 55)) +
+  labs(y = 'count') +
+  theme_classic() +
+  theme(legend.position = 'none')
+
+### geom_bar()
+ggplot(iris_count, aes(x = Species, y = n)) +
+  geom_bar(aes(fill = Species), color = 'black', stat = 'identity') +
+# adds the counts
+  geom_text(aes(label = n), vjust = -1) +
+# might need to adjust the plot area so the counts are nicely visible
+  coord_cartesian(ylim = c(0, 55)) +
+  labs(y = 'count') +
+  theme_classic() +
+  theme(legend.position = 'none')
+```
+
+
+
