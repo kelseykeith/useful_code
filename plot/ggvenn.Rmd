@@ -1,0 +1,69 @@
+---
+
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggvenn)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## `ggvenn`
+
+<https://github.com/yanlinlin82/ggvenn>
+
+```{r}
+tibble(values = c(1:10),
+       a = rep(c(T, F), each = 5),
+       b = rep(c(T, F, T), c(3, 5, 2)),
+       c = rep(c(F, T, F), c(4, 5, 1)),
+       d = rep(c(T, F, T), c(2, 5, 3))) -> table
+```
+
+### Basic Usage
+
+```{r}
+### everything
+ggvenn(table)
+# check class
+ggvenn(table) %>% class()
+
+### selected sets
+ggvenn(table, c('a', 'b'))
+```
+
+### Aesthetics
+
+```{r}
+### fill 
+# color
+ggvenn(table, c('a', 'b'), fill_color = c('orange3', 'gray50'))
+# alpha
+ggvenn(table, c('a', 'b'), fill_alpha = 1)
+ggvenn(table, c('a', 'b'), fill_alpha = 0.1)
+
+### lines - color/size/type/alpha
+# color
+ggvenn(table, c('a', 'b'), stroke_color = 'red')
+# size
+ggvenn(table, c('a', 'b'), stroke_size = 5)
+ggvenn(table, c('a', 'b'), stroke_size = 0.1)
+# type
+ggvenn(table, c('a', 'b'), stroke_linetype = 'dashed')
+# alpha
+ggvenn(table, c('a', 'b'), stroke_alpha = 0.5)
+
+### text size
+ggvenn(table, c('a', 'b'), text_size = 10)
+ggvenn(table, c('a', 'b'), text_size = 2)
+
+### turn percentage off
+ggvenn(table, c('a', 'b'), show_percentage = F)
+```
+
+
+
+
+

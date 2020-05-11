@@ -1,0 +1,97 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(conflicted)
+
+library(nycflights13)
+library(broom)
+
+filter <- dplyr::filter
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Calculate Odds Ratios Using Fisher's Exact Test
+
+When you call `fisher.test()` on a 2x2 contingency table, the estimate returned is the odds ratio. To demonstrate calculating and plotting odds ratios using Fisher's Exact Test, we'll use the `flights` table from the `nycflights13` package. The qustion we'll "answer" is do the departure times of flights reflect their arrival times? In other words, are flights that depart early or late, more likely to arrive early or late?
+
+### Calculate the Odds Ratios using `fisher.test()`
+
+```{r}
+flights %>%
+  select(flight, tailnum, origin, year, month, day, dep_delay, arr_delay) %>%
+  na.omit() %>%
+# need to make binary variables to count on
+  mutate(dep_delay_cat = ifelse(dep_delay < 0, 'early', 'late'),
+         arr_delay_cat = ifelse(arr_delay < 0, 'early', 'late')) %>%
+# count every combination of late/early flights by originating airport
+  group_by(origin) %>%
+  count(dep_delay_cat, arr_delay_cat) %>%
+  ungroup() %>%
+# combine the combinations of early and late
+  unite(time, dep_delay_cat, arr_delay_cat) %>%
+# make a wider table because it's easier to supply the values to fisher.test() 
+# that way
+  pivot_wider(names_from = time, values_from = n) %>%
+# nest by origin so you can calculate odds ratios for each airport at the same time
+  nest(data = c('early_early', 'early_late', 'late_early', 'late_late')) %>%
+# need the agreement conditions (here early_early and late_late) to be first
+# and last in the matrix you're setting up so the odds ratio is calculated 
+# correctly
+  mutate(fisher_test = map(data, 
+                           ~ fisher.test(matrix(c(.$early_early, .$early_late, 
+                                                  .$late_early, .$late_late), 
+                                                ncol = 2)))) %>%
+  mutate(fisher_test = map(fisher_test, ~ glance(.))) %>%
+  unnest(c(data, fisher_test)) -> oddsratios
+```
+
+### Plot Odds Ratios
+
+#### Odds Ratio
+
+```{r}
+ggplot(oddsratios, aes(x = origin, y = estimate, color = origin)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2, size = 1) +
+  scale_color_manual(values = c('forestgreen', 'firebrick3', 'deepskyblue3')) + 
+  geom_hline(yintercept = 1, linetype = 'dashed', color = 'gray60') +
+  labs(x = '', y = 'Odds Ratio') +
+  coord_flip() + 
+# you may want to scale the axis you're plotting the odds ratios on, depending
+# on how different they are
+  # scale_y_log10() +
+  theme_bw() + 
+  theme(legend.position = 'none')
+```
+
+#### Log Odds Ratio
+
+The log in log odds is the natural log <https://www.statisticshowto.com/log-odds/>
+
+```{r}
+oddsratios %>%
+  mutate(log_odds = log(estimate),
+         log_low = log(conf.low), 
+         log_high = log(conf.high)) %>%
+
+ggplot(aes(x = origin, y = log_odds, color = origin)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = log_low, ymax = log_high), width = 0.2, size = 1) +
+  scale_color_manual(values = c('forestgreen', 'firebrick3', 'deepskyblue3')) + 
+  geom_hline(yintercept = 1, linetype = 'dashed', color = 'gray60') +
+  labs(x = '', y = 'Log Odds Ratio') +
+  coord_flip() + 
+  theme_bw() + 
+  theme(legend.position = 'none')
+```
+
+
+
+<br><br>
+
+

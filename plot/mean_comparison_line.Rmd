@@ -1,0 +1,37 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggpubr)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## `stat_compare_means()` from `ggpubr`
+
+`stat_compare_means()` adds "mean comparison p-values to a ggplot, such as box blots, dot plots and stripcharts."
+<https://www.rdocumentation.org/packages/ggpubr/versions/0.2.5/topics/stat_compare_means>
+
+### Basic Usage
+
+You must specify the comparisons you want to plot the bar for
+
+```{r, fig.width = 5, fig.height = 4}
+### specify comparisons in a list of vectors
+comparisons <- list(c('setosa', 'versicolor'), 
+                    c('setosa', 'virginica'), 
+                    c('versicolor', 'virginica'))
+
+### plot
+ggplot(iris, aes(x = Species, y = Petal.Length)) +
+  geom_boxplot(aes(fill = Species), alpha = 0.75) +
+# Specify list of comparisons and testing method
+# Default test is Kruskal-Wallis which won't be appropriate most of the time
+  stat_compare_means(comparisons = comparisons, method = 't.test') +
+  theme_classic(base_size = 16)
+```
+
+
+
