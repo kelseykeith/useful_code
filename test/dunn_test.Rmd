@@ -1,0 +1,44 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(vroom)
+library(conflicted)
+
+library(dunn.test)
+library(ggpubr)
+
+conflict_prefer('filter', 'dplyr')
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Dunn Test
+*2020-09-03*
+
+Dunn's Test doesn't come with base R, so you have to install a package with the function if it's not already installed. <https://cran.r-project.org/web/packages/dunn.test/index.html>
+
+```{r}
+install.packages('dunn.test')
+```
+
+Demonstrate syntax using the `iris` dataset. (There's no tidy method available in `broom`).
+
+```{r}
+iris %>%
+# to pipe into dunn.test() have to use .$ in front of the column names
+# x = the column from the data you want to test; g = the column of the data
+# containing the groups you want to test over. Default p-value, correction 
+# method is none, so put "bh" which is Benjamini-Hotchberg which is the same as
+# FDR
+  dunn.test(x = .$Sepal.Width, g = .$Species, method = 'bh') %>% 
+# Turn the result into a table. as.data.frame() works too
+  as_tibble() 
+```
+
+
+
+

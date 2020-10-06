@@ -1,0 +1,66 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Density Plot with Summarized Count Data
+*2020-09-17*
+
+If you have only summarized count data, but you want to transform it back into individual entries, so you can plot a density plot, here's the trick I worked out to do it.
+
+---
+
+Make the data table for this example. This is real pcr amplicon multiplex sequencing data for two apparently healthy individuals at a target locus where we have some read count and some probability of that number of CpGs being methylated.
+
+```{r}
+tibble(sample_id = rep(c('F07', 'F17'), each = 9),
+       age = rep(c(25, 78), each = 9),
+       age_cat = factor(rep(c('young', 'old'), each = 9),
+                        levels = c('young', 'old')),
+       sex = rep('F', 18),
+       count_meth_cpgs = rep(0:8, 2),
+       read_count = c(470374, 354256, 219216, 133696, 71845, 29409, 15624, 
+                      3635, 2157, 213442, 225327, 255413, 160875, 90496, 
+                      44120, 19177, 9190, 6135),
+       probability = c(0.361767158, 0.272460183, 0.168600198, 0.102826308, 
+                       0.055256374, 0.022618619, 0.012016502, 0.002795698,
+                       0.001658960, 0.208403837, 0.220008299, 0.249384138, 
+                       0.157077648, 0.088359899, 0.043078575, 0.018724339, 
+                       0.008973076, 0.005990187)) -> data
+```
+
+Plot
+
+```{r}
+data %$%
+# We're plotting the number of methylated CpGs, so in order to transform the 
+# summarized data back to individual entries, we need to replicate the CpG 
+# counts the same time as the number of reads for that count, and also 
+# replicate any other information, like the age, that we want to keep around the
+# same number of times. Using the %$% vector pipe from magrittr, we can pipe
+# those counts to a new data.frame and replicate them by the read_count column
+  data.frame(count_meth_cpgs = rep(count_meth_cpgs, read_count),
+             age_cat = rep(age_cat, read_count)) %>%
+
+ggplot(aes(x = count_meth_cpgs)) +
+# To get counts on the y-axis instead of density use aes(y = ..count..) inside
+# of geom_density
+  geom_density(aes(y = ..count.., fill = age_cat), 
+               alpha = 0.5, color = 'black', size = 1.5,
+# adjust sets the smoothness of the density plot; default is 1. Need to smooth
+# aggressively with transformed count data, because, as you'll see if you 
+# remove this argument, there are peaks at whole numbers and valleys between
+               adjust = 7) +
+  scale_fill_manual(values = c('lightgoldenrod2', 'dodgerblue3'),
+                    labels = c('Pattern A', 'Pattern B')) +
+  labs(x = 'Number Methylated CpGs', y = 'Allele Count', fill = '') +
+  theme_bw(base_size = 20) +
+  theme(legend.position = 'none')
+```
+

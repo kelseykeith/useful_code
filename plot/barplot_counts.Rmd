@@ -27,6 +27,28 @@ ggplot(iris, aes(x = Species)) +
 
 <br>
 
+### Dodged Bar Plot Counts
+
+```{r}
+iris %>%
+# add a dummy variable so you can use fill to dodge on species
+  mutate(dummy_variable = 'dummy_variable') %>%
+  
+ggplot(aes(x = dummy_variable, fill = Species)) +
+  geom_bar(color = 'black', position = 'dodge') +
+# adds the counts
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -1,
+# add position_dodge() so that the counts are spaced evenly, may need to play
+# with value
+            position = position_dodge(width = 0.9)) +
+# might need to adjust the plot area so the counts are nicely visible
+  coord_cartesian(ylim = c(0, 55)) +
+  theme_classic() +
+  theme(legend.position = 'none')
+```
+
+<br>
+
 ### With Pre-Computed Counts
 
 Count the species in iris.

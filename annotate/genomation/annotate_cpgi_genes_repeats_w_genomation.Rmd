@@ -1,0 +1,223 @@
+---
+output: html_document
+---
+
+```{r setup, include = FALSE}
+library(magrittr)
+library(tidyverse)
+library(vroom)
+
+library(genomation)
+# library(biomaRt)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## `genomation`
+*2020-10-05*
+
+The `genomation` package is a Bioconductor package for the annotation and visualization of genomic intervals. This document has example code for the common annotation tasks I use `genomation` for.
+
+<https://www.bioconductor.org/packages/release/bioc/html/genomation.html>
+
+### Read / Wrangle Data
+
+These CpG Sites are taken from actual raw data, chr21 sites only, to make a small example table.
+
+```{r}
+vroom('example_cpgs.tsv') -> example_cpgs
+```
+
+### Annotate
+
+Convert data into a `GRanges` so it can be annotated. This table is already correctly formatted with each row being a unique CpG to be annotated, but if you have skinny table, you will need to wrangle before converting to a `GRanges`.
+
+```{r}
+# Convert data into GRange so it can be annotated
+example_cpgs %>% 
+  mutate(end = start) %>% 
+  plyranges::as_granges(seqnames = chr) -> example_grange
+```
+
+#### CpG Islands (CpGi)
+
+Get CpGi information. `genomation` has some built-in annotations, but you probably want to pull from some annotation table like we do here for CpG island annotations. The `genomation::readFeatureFlank()` function takes a bed file, converts it to a `GRange`, and makes a second `GRange` for the flanks around the feature/CpGi. By default, it makes 2000 bp flanks to either side of the feature, although you can change the size of the flank. The two `GRanges` are stored in a `SimpleGRangesList` object (basically a list of `GRanges`).
+
+```{r}
+### load CpG island annotations
+# Give the path to the bed file
+cpg.obj <- readFeatureFlank('cpgi_hg19_chr21.bed',
+# Set the names of the feature and its flank; these are the names JJ uses
+                            feature.flank.name = c('CpGi','shores'),
+# By default the flank is 2000 bp (put here to remind myself it's an option),
+# but can be set to anything
+                            flank = 2000)
+```
+
+The `annotateWithFeatureFlank()` function checks whether each row 
+
+```{r}
+### Get CpGi and CpG shore annotations for each CpG
+# GRanges with data
+annotateWithFeatureFlank(example_grange, 
+# From the annotation object, the feature annotation you want to add and the 
+# name you want to give it
+                         feature = cpg.obj$CpGi, feature.name = "CpGi",
+# From the annotation object, the flank annotation you want to add and the 
+# name you want to give it
+                         flank = cpg.obj$shores, flank.name="shores") %>% 
+# annotateWithFeatureFlank() returns an AnnotationByFeature object. To get a
+# rectangular table, use getMembers() to convert it to a matrix.
+  getMembers() %>% 
+# Then turn the matrix into a tibble, because matrices are inconvenient
+  as_tibble() -> cpgi_anno
+
+### Look at results
+# You get an annotation for each row/CpG in the original table
+cpgi_anno %>% dim()
+example_cpgs %>% dim()
+# For each feature and it's flank you get a binary 1/0 whether the CpG is in the
+# feature/flank
+cpgi_anno %>% head()
+```
+
+##### Genes
+
+Get gene information. The `readTranscriptFeatures()` is a more specialized annotation reading function that takes an (extended) bed file (with 12 or more columns) and finds exon, intron, and promoter locations and boundaries for each gene. The `up.flank` and `down.flank` arguments set the number of base pairs for the promoter boundaries around the transcription start site (TSS). By default it's +/- 1000 bp around the TSS (which is standard), but it could be modified.
+
+```{r}
+### read in gene annotations
+gene.obj <- readTranscriptFeatures("refseq_genes_hg19_chr21.bed")
+```
+
+Get annotations for whether the row/CpG is in a promoter, exon, or intron.
+
+```{r}
+### location with respect to closest genes
+# Data GRanges
+annotateWithGeneParts(example_grange,
+# gene annotations
+                      gene.obj) -> awgp
+# This works like annotateWithFeatureFlank(), except it returns for each 
+# row/CpG whether it's in a promoter, exon or intron. It can be any combination
+# of the 3. Also, saved the results to an object, then turned into a table 
+# because we'll need the annotateWithGeneParts() results in the next chunk.
+awgp %>%
+  getMembers() %>%
+  as_tibble() -> gene_anno
+```
+
+Our gene annotation table has RefSeq IDs for the annotation information. Since no one can agree on universal IDs for genes, you probably want at least the HGNC IDs so you have human readable gene names.
+
+```{r}
+### gene names
+# Have RefSeq annotations; probably want HGNC human-readable gene names too 
+# and maybe Ensembl IDs to link data with RNA-seq or Entrez IDs for pathway 
+# analysis; WARNING: Didn't specify genome version here, which is fine for IDs,
+# between common genome versions like hg19/hg38 and mm9/mm10, but if there was 
+# anything involving genomic coordinates would have to specify
+hsapiens = biomaRt::useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+# How you look up all the possible attributes you can grab for humans
+# biomaRt::listAttributes(hsapiens) %>% filter(str_detect(name, 'entrez'))
+biomaRt::getBM(attributes = c('hgnc_symbol', 'refseq_mrna', 
+                              'ensembl_gene_id', 'entrezgene_id'),
+               filter = 'refseq_mrna',
+               values = unique(gene.obj$exons$name),
+               mart = hsapiens) %>%
+  as_tibble() -> refseq_gene_names
+```
+
+In addition to knowing whether the row/CpG is in some, gene, we want to know what gene it's in or, if it's not in a gene how far the closest gene is to it. We can get that information with the function `getAssociationWithTss()`, which gives you the distance from the row/CpG to the TSS (dist.to.feature), the closest gene (feature.name), and what strand the gene is on (feature.strand)
+
+```{r}
+### Get closest gene and distance to it
+# Only thing you need to give is the results of annotateWithGeneParts(), which
+# is why we saved it in the last chunk. Also it helpfully returns a data.frame
+getAssociationWithTSS(awgp) %>% 
+# Like the other genomation functions, it returns annotations for each row of 
+# the original table. It has weird rownames, so convert to a tibble to drop 
+# the rownames
+  as_tibble() %>%
+# Combine with all our other gene names we looked up from biomaRt
+  left_join(refseq_gene_names, by = c('feature.name' = 'refseq_mrna')) %>% 
+  select(row = target.row, gene = hgnc_symbol, 
+         refseq_gene_id = feature.name, ensembl_gene_id,
+         entrez_gene_id = entrezgene_id,
+         gene_strand = feature.strand, dist_tss = dist.to.feature) -> gene_names
+```
+
+#### Repeats
+
+Read in repeat annotations. `readBed()` reads in a bed file and converts it to a `GRanges`
+
+```{r}
+### read in re-formatted repeat file
+repeats <- readBed('hg19_RepeatMasker_mainChroms.bed')
+```
+
+Look up whether a CpG is inside a repeat. `annotateWithFeature()` is almost identical to `annotateWithFeatureFlank()`, but just checks whether the row/CpG is inside the feature and doesn't have any information about, or check, the feature flanks. We'll find the distance to the closest repeat in the next chunk, and the flanks of repeats aren't biologically relevant like CpGi shores, so don't care about the flank annotations for repeats.
+
+```{r}
+### location with respect to closest repeat
+annotateWithFeature(example_grange, 
+                    repeats, feature.name = 'repeat', 
+                    intersect.chr = T) %>%
+  getMembers() %>% 
+  as_tibble() %>%
+  rename(`repeat` = V1) -> repeat_anno
+```
+
+Like for the genes, we don't just want to know whether a CpG is in a repeat, but what the name of the repeat is and how close the row/CpG is to it. The only function (as far as I could tell) that `genomation` has to add names and distances with is `annotateWithGeneParts()`, so for repeats, we'll make a make `GRangesList` with same features as the one made by `readTranscriptFeatures()` (which is what `annotateWithGeneParts()` takes) to trick `annotateWithGeneParts()` to annotate our data with the closest repeat and the distance to the closest repeat. 
+
+```{r}
+### get distance to closest repeat
+# Have to trick genomation into thinking the repeats are genes; make an 
+# GRanglesList object identical to the one created with 
+# readTranscriptFeatures(); the "exons" and the "TSSes" are the critical 
+# components for us to get the repeat annotations we want
+# The "exon" will just be the repeat, as will the "intron"
+GenomicRanges::GRangesList(exons = repeats, 
+                           introns = repeats,
+# Add +/- 1000 bp flank around starting position of each repeat to simulate 
+# "promoters"
+                           promoters = IRanges::flank(IRanges::narrow(repeats, 
+                                             start = 1, end = 1), 
+                             width = 1000, both = T),
+# Find the start position of repeat
+                           TSSes = IRanges::narrow(repeats, 
+                                                   start = 1, 
+                                                   end = 1)) -> repeats_as_genes
+
+### get the annotations
+annotateWithGeneParts(example_grange, repeats_as_genes) %>%
+  getAssociationWithTSS() %>%
+  as_tibble() %>%
+  select(repeat_name_class_family = feature.name, 
+         repeat_strand = feature.strand, 
+         dist_repeat = dist.to.feature) -> repeat_names
+```
+
+#### Combine Annotations
+
+Because all the annotation tables have information for each row of the original table, you can simply `cbind()` the original data together with all the annotations.
+
+```{r}
+cbind(example_cpgs, cpgi_anno, gene_anno, repeat_anno, repeat_names) %>%
+# Have to add row numbes and left_join() gene names because wound up with a 
+# different number of rows because IDs ARE THE WORST. Should be mostly able to
+# cbind() these as well
+  mutate(row = 1:nrow(.)) %>%
+  left_join(gene_names, by = 'row')
+```
+
+<br>
+
+```{r}
+sessionInfo()
+```
+
+<br><br>
+
+
+
+

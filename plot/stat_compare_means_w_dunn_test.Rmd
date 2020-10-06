@@ -1,0 +1,67 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(vroom)
+library(conflicted)
+
+library(dunn.test)
+library(ggpubr)
+
+conflict_prefer('filter', 'dplyr')
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Dunn Test
+*2020-09-03*
+
+Dunn's Test doesn't come with base R, so you have to install a package with the function if it's not already installed. <https://cran.r-project.org/web/packages/dunn.test/index.html>
+
+```{r}
+install.packages('dunn.test')
+```
+
+Demonstrate syntax using the `iris` dataset. (There's no tidy method available in `broom`). Also prep the results to be plotted using `ggpubr::stat_pvalue_manual()`. Function documentation <https://rpkgs.datanovia.com/ggpubr/reference/stat_pvalue_manual.html>
+
+```{r}
+iris %>%
+# to pipe into dunn.test() have to use .$ in front of the column names
+# x = the column from the data you want to test; g = the column of the data
+# containing the groups you want to test over. Default p-value, correction 
+# method is none, so put "bh" which is Benjamini-Hotchberg which is the same as
+# FDR
+  dunn.test(x = .$Sepal.Width, g = .$Species, method = 'bh') %>% 
+# Turn the result into a table. as.data.frame() works too
+  as_tibble() %>%
+### Add stuff onto table to plot using stat_pvalue_manual()
+# Must specify y position of the labels; played around with numbers until the
+# position of the labels looked good
+  mutate(y.position = c(4.555, 4.75, 4),
+# stat_pvalue_manual() will plot the whole p-value number, so round to one
+# decimal point with scientific notation
+         label = formatC(P.adjusted, format = 'e', digits = 1)) %>%
+# stat_pvalue_manual() requires the groups being compared to be in 2 columns
+# named "group1" and "group2", so split up the comparison column into 2 columns
+  separate(comparisons, into = c('group1', 'group2'), sep = ' - ') -> iris_dunn
+```
+
+```{r}
+ggplot(iris) +
+# Because we're plotting two different tables here, iris for the main boxplots
+# and the Dunn Test results for stat_pvalue_manual(), having the stuff for the
+# boxplot in the main ggplot() call was screwing up stat_pvalue_manual() 
+# because the Dunn Test table doesn't have the same columns, so moved x, y, and
+# fill to the geom_boxplot() aesthetic
+  geom_boxplot(aes(x = Species, y = Sepal.Width, fill = Species)) +
+# For stat_pvalue_manual(), supply the correctly formatted Dunn Test results and
+# tell it which column has the p/qvalues you want to plot. I used label here,
+# because I rounded off the p-values in that column to look nice
+  stat_pvalue_manual(iris_dunn, label = 'label') +
+  theme_classic()
+```
+
+
