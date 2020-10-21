@@ -14,15 +14,96 @@ knitr::opts_chunk$set(echo = TRUE)
 <https://github.com/const-ae/ggupset>
 
 ```{r}
-
+data("gene_pathway_membership")
 ```
 
-## Including Plots
+###
 
-You can also embed plots, for example:
+#### Using a Nested List and `scale_x_upset()`
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+gene_pathway_membership %>% 
+  as.data.frame() %>%
+  rownames_to_column('pathway') %>%
+# Data needs to be skinny
+  pivot_longer(Aco1:Zfp830, names_to = 'gene', values_to = 'in_pathway') %>%
+# You need to filter for some feature of interset that you want to check the 
+# intersection of; for example, here we're filtering only for genes that are
+# present in the pathways we want to overlap. A more typical examples would be
+# filtering for significance and or magnitude of change.
+  filter(in_pathway == T) %>%
+# Need to make a list column of the things you want to be INTERSECTED. Since we
+# want to intersect pathways, they need to be made into the list column.
+  group_by(gene) %>%
+  summarize(pathway = list(pathway)) %>%
+  ungroup() -> pathway_list
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r, fig.width = 5, fig.height = 4}
+ggplot(pathway_list, aes(x = pathway)) +
+  geom_bar() +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -1) +
+  scale_x_upset() +
+# You can NOT use coord_cartesian() to rescale with ggupset. scale_x_upset() 
+# either overrides or is messed up by it
+  scale_y_continuous(lim = c(0, 8)) +
+  labs(x = '') +
+  theme_classic()
+```
+
+#### Using Categories Separate by a Character and `axis_combmatrix()`
+
+This isn't the best example, because it's really easier to keep this table skinny and use the nested list version, but the output is correct for what the output for this method should look like.
+
+```{r}
+gene_pathway_membership %>%
+  as.data.frame() %>%
+  rownames_to_column('pathway') %>%
+  pivot_longer(Aco1:Zfp830, names_to = 'gene', values_to = 'in_pathway') %>%
+  filter(in_pathway == T) %>%
+  select(-in_pathway) %>%
+  mutate(pathway2 = pathway) %>%
+  pivot_wider(names_from = pathway, values_from = pathway2) %>%
+  unite(pathway, `Actin dependent Cell Motility`:`Neuronal Apoptosis`,
+        sep = '-', na.rm = T) -> pathway_concatenate
+```
+
+Disadvantage is you can't order by degree, but if you set factors for the items in pathway, you can reorder the bars
+
+```{r}
+ggplot(pathway_concatenate, aes(x = pathway)) +
+  geom_bar() +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -1) +
+  axis_combmatrix(sep = '-') +
+  scale_y_continuous(lim = c(0, 8)) +
+  labs(x = '') +
+  theme_classic()
+```
+
+```{r}
+pathway_concatenate %>%
+  count(pathway) %>% 
+  mutate(intersection = str_count(pathway, '-')) %>%
+  arrange(desc(intersection), n)
+
+pathway_concatenate %>%
+  mutate(pathway = factor(pathway, 
+                          levels = c('Chemokine Secretion-Citric Acid Cycle-Meiotic Cell Cycle',
+                                     'Chemokine Secretion-Citric Acid Cycle',
+                                     'Citric Acid Cycle-Meiotic Cell Cycle',
+                                     'Meiotic Cell Cycle-Neuronal Apoptosis',
+                                     'Actin dependent Cell Motility',
+                                     'Chemokine Secretion', 
+                                     'Citric Acid Cycle', 'Meiotic Cell Cycle',
+                                     'Mammalian Oogenesis', 
+                                     'Neuronal Apoptosis'))) %>%
+
+ggplot(aes(x = pathway)) +
+  geom_bar() +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -1) +
+  axis_combmatrix(sep = '-') +
+  scale_y_continuous(lim = c(0, 8)) +
+  labs(x = '') +
+  theme_classic()
+```
+

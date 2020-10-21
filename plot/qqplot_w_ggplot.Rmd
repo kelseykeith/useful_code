@@ -1,0 +1,46 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## QQ Plot with `ggplot2`
+
+Use `geom_qq()` to plot the points and `geom_qq_line()`to plot the line.
+
+```{r}
+# use sample as the arugment inside aes() instead of x
+ggplot(iris, aes(sample = Sepal.Length)) +
+  geom_qq() +
+  geom_qq_line(color = 'red') +
+  theme_classic()
+```
+
+Can plot multiple groups or pieces of data simultaneously (although for this fake case with iris, using `facet_wrap()` is a much better idea.)
+
+```{r}
+iris %>%
+  mutate(sample = 1:nrow(.)) %>%
+  pivot_longer(Sepal.Length:Petal.Width, 
+               names_to = 'measurement', values_to = 'length') %>%
+
+ggplot(aes(sample = length, group = measurement)) +
+  geom_qq() +
+  geom_qq_line(color = 'red') +
+  theme_classic()
+
+iris %>%
+  mutate(sample = 1:nrow(.)) %>%
+  pivot_longer(Sepal.Length:Petal.Width, 
+               names_to = 'measurement', values_to = 'length') %>%
+
+ggplot(aes(sample = length)) +
+  geom_qq() +
+  geom_qq_line(color = 'red') +
+  facet_wrap(~ measurement) +
+  theme_classic()
+```
