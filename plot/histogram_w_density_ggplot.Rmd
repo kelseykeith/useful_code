@@ -1,0 +1,37 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Histogram with Density Line in `ggplot`
+
+<https://stackoverflow.com/questions/41907260/scale-geom-density-to-match-geom-bar-with-percentage-on-y>
+
+```{r, fig.width = 3, fig.height = 3}
+ggplot(iris, aes(Sepal.Length)) +
+  stat_bin(aes(y=..density..), 
+           breaks = seq(min(iris$Sepal.Length), max(iris$Sepal.Length), by = .1), 
+           color ="white") +
+  geom_line(stat ="density", size = 1, color = 'firebrick3') +
+  coord_cartesian(xlim = c(4, 8)) +
+  labs(x = 'Sepal Length (cm)', y = 'Proportion of Irises') +
+  theme_classic()
+```
+
+
+
+
+
+
+
+
+
+
+
+
