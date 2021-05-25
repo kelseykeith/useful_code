@@ -1,0 +1,101 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(tidyverse)
+library(vroom)
+
+# library(DESeq2)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Plot Patterns of Gene Expression using Kmeans Clustering
+
+
+### Make a Fake Dataset
+
+We need RNA-seq data to use for this example, so we'll simulate some using the `DESeq` package
+
+```{r}
+set.seed(1)
+dds <- DESeq2::makeExampleDESeqDataSet(n = 500, betaSD = 1)
+```
+
+
+### Cluster Using kmeans Clustering
+
+#### Identify the optimal number of clusters using the silhouette method
+
+For kmeans clustering, you have to specify the number of clusters you want. However, we don't know how many clusters to pick, so we'll test a bunch of different clusters. Then we'll use the results to make a silhouette plot, where the maximum value gives the best number of clusters. Once the code is the chunk below is run, you'll see two clusters is the maximum, but we want to plot a more interesting example, so we'll go with the next local maximum, 6 clusters going forward. If there's no clear value to pick, you can always test plot a few different cluster numbers as well.
+
+```{r}
+# set the cluster numbers we're testing 2 to 15 clusters
+tibble(k = 2:15) %>% 
+# run the kmeans clustering
+  mutate(kclust = map(k, ~ kmeans(DESeq2::fpkm(dds), .)),
+# calculate the silhouette score
+         silhouette = map(kclust, ~ mean(cluster::silhouette(.$cluster, dist(DESeq2::fpkm(dds)))[,3]))) %>%
+  unnest(silhouette) %>%
+
+# plot the silhouette plot
+ggplot(aes(x = k, y = silhouette)) +
+  geom_point() +
+  geom_line() +
+  scale_x_continuous(breaks = 2:15) +
+  labs(x = 'Number of Clusters', y = 'Average Silhouette Score') +
+  theme_classic(base_size = 16)
+```
+
+#### Run kmeans with chosen number of cluster(s)
+
+Run kmeans with our chosen number of clusters, 6, and save the cluster assignment results. **NOTE:** To run kmeans clustering, you must have a table with the thing you want to cluster as the rownames, the features as the column names, and only numeric values in the table. The DESeq2 FPKM counts table is a `matrix` with genes, what we want to cluster, as rownames, samples as column names, and normalized counts in the table, so it was already formatted correctly and we didn't have to do any adjustment.
+
+```{r}
+# run kmeans with the table and the number of clusters you want
+kmeans(DESeq2::fpkm(dds), 6) %>%
+# take the cluster assignments
+  .$cluster %>%
+# turn into a tibble table instead of a named vector
+  enframe(name = 'gene', value = 'cluster') -> kmeans_clusters
+```
+
+Join the kmeans clusters with the expression data
+
+```{r}
+### join with expression data
+# get sample condition assignments, the DESeq object holds the condition in the same order as the column names in the count table
+tibble(sample_id = colnames(DESeq2::fpkm(dds)),
+       condition = dds$condition) -> sample_info
+
+# combine the count, condition and cluster assignment information
+DESeq2::fpkm(dds) %>%
+  as.data.frame() %>%
+  rownames_to_column('gene') %>%
+  pivot_longer(2:ncol(.), names_to = 'sample_id', values_to = 'counts') %>%
+  left_join(sample_info, by = 'sample_id') %>%
+  left_join(kmeans_clusters, by = 'gene') %>%
+# we'll want average counts per condition and cluster since we don't want to plot 6 values for each, 
+  group_by(gene, condition, cluster) %>%
+  summarize(avg_count = mean(counts)) %>%
+  ungroup() -> counts_clusters
+```
+
+#### Plot patterns of gene expression
+
+```{r}
+ggplot(counts_clusters, aes(x = condition, y = avg_count, group = gene)) +
+  geom_line() +
+  facet_wrap(~ cluster) +
+  labs(x = 'Condition', y = 'Average FPKM') +
+  theme_bw(base_size = 16)
+```
+
+
+
+
+
+
+

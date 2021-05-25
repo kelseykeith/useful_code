@@ -1,0 +1,56 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Contingency Table with `ggplot`
+
+For an example, pretend that we care about the proportion of large irises with large petals, (Petal.Length > 4.35 cm, Petal.Width > 1.3 cm) in each species. We can count the number of irises for each species that have long petals, wide petals, both, or neither and plot them in contingency tables.
+
+```{r}
+iris %>%
+# add two columns indicating whether the petals are long or wide; you may or 
+# may not have to add categorical columns like this depending on what's already
+# in your table
+  mutate(long_petal = ifelse(Petal.Length > 4.35, 'large', 'small'),
+         wide_petal = ifelse(Petal.Width > 1.3, 'large', 'small')) %>%
+# Count the number of long and wide petals per species
+  count(Species, long_petal, wide_petal) %>%
+# If you just run through the previous step, you'll notice that not every 
+# species has all 4 combinations of long and wide petals. You can use 
+# tidyr::complete() to fill the missing combinations. The arguments you need to
+# give are the columns you want to remain unchanged (here Species only), the
+# columns you want to make all combinations for inside nesting() (here 
+# nesting(long_petal, wide_petal), and the column(s) you want to fill in 
+# additional values for, (here fill = list(n = 0)))
+  complete(Species, nesting(long_petal, wide_petal), fill = list(n = 0)) %>%
+
+# PLOT!
+ggplot(aes(x = long_petal, y = wide_petal, fill = n)) +
+# this makes the tiles of the contingency table
+  geom_tile() +
+# this colors by the count, but is optional, as is fill = n in the main ggplot call
+  scale_fill_gradient('count', low = "gray95", high = "firebrick3") +
+# this adds the counts on top of each tile
+  geom_text(aes(x = long_petal, y = wide_petal, label = n), 
+            color = "black", size = 12) +
+  facet_wrap(~ Species, nrow = 2) +
+  labs(x = 'Petal Length > 4.35', y = 'Petal Width > 1.3') +
+  theme_classic() +
+# this removes a lot of the standard lines on the plot which look terrible for
+# a contingency table
+  theme(axis.title = element_text(size = 18),
+        axis.text = element_text(size = 12),
+        axis.ticks = element_blank(),
+        axis.line = element_blank())
+```
+
+
+

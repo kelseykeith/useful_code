@@ -8,7 +8,7 @@
 
 ### Connect Mac Filesystem to Remove Server Using `sshfs`
 
-The command is `sshfs YOURUSERNAME@IPADDRESS:/PATH/TO/MOUNT/ON/REMOTE/SERVER ~/PATH/TO/MOUNT/LOCALLY -o follow_symlinks`
+The command is `sshfs YOURUSERNAME@IPADDRESS:/PATH/TO/MOUNT/ON/REMOTE/SERVER ~/PATH/TO/MOUNT/LOCALLY -o follow_symlinks`. Be aware that the entire local file path must exist initially.
 
 Example: `sshfs kkeith@10.1.105.11:/home/kkeith/ ~/Volumes/cbix_kkeith -o follow_symlinks`
 

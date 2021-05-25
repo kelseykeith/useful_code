@@ -1,0 +1,98 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(tidyverse)
+
+library(pheatmap)
+library(viridis)
+library(heatmaply)
+library(patchwork)
+library(ggdendro)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## "Heatmap" with `ggplot`
+
+
+
+```{r}
+iris %>%
+  select(-Species) -> iris.num
+
+pheatmap(iris.num, 
+         show_rownames = F,
+        )
+```
+
+```{r}
+heatmaply(iris.num, plot_method = 'ggplot')
+```
+
+### `ggplot2` Heatmap With**OUT** the Dendrogram
+
+```{r}
+iris.num %>%
+  dist() %>%
+  hclust() -> row_cluster
+
+iris.num %>%
+  t() %>%
+  dist() %>% 
+  hclust() -> col_cluster
+
+col_cluster$order
+iris
+
+```
+
+```{r}
+iris %>%
+  mutate(rownum = factor(1:nrow(.), levels = c(row_cluster$order))) %>%
+  pivot_longer(Sepal.Length:Petal.Width, 
+               names_to = 'measurement', values_to = 'value') %>%
+  mutate(measurement = factor(measurement, 
+                              levels = c('Sepal.Length', 'Petal.Width', 
+                                         'Sepal.Width', 'Petal.Length')),
+         zvalue = (value - mean(value))/sd(value)) %>%
+
+ggplot(aes(x = measurement, y = rownum, fill = value)) +
+  geom_raster() +
+  scale_fill_viridis() +
+  labs(x = 'Measurement', y = 'Sample') + 
+  theme_void() -> ggheat
+  # theme_classic() +
+  # theme(axis.text.y = element_blank(),
+  #       axis.ticks = element_blank(),
+  #       axis.line = element_blank()) -> ggheat
+```
+
+
+```{r}
+dendro_data(row_cluster) -> rows
+
+ggplot(segment(rows)) + 
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) + 
+  coord_flip() + 
+  scale_y_reverse(expand = c(0.2, 0)) +
+  theme_void() -> row_dendro
+
+
+dendro_data(col_cluster) -> cols
+
+ggplot(segment(cols)) + 
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) + 
+  theme_void() -> col_dendro
+```
+
+
+```{r}
+(plot_spacer() | col_dendro) / (row_dendro | ggheat)
+```
+
+
+
+

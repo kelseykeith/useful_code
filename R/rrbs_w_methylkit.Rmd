@@ -1,0 +1,185 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(methylKit)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Aging RRBS with methylKit
+
+### Differential Methylation
+
+#### Read In Data Through `methylKit`
+
+```{r}
+### THIS WILL BE DIFFERENT; change to path on your account/machine
+files <- list.files(path = 'data/hg19_processed_data/methyl_extract20_hg19', 
+                     pattern = '*.bismark.cov.gz', 
+                     full.names = T)
+
+### read the files in as a methylRawList object
+myobj <- methRead(as.list(files),
+                  sample.id = list('F01', 'F06', 'F07', 'F14', 'F17', 'F19',
+                                   'M02', 'M05', 'M07', 'M13', 'M14', 'M15'),
+                  assembly = 'hg19',
+                  treatment = c(0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1),
+                  context = 'CpG',
+                  pipeline = 'bismarkCoverage')
+```
+
+#### Test for Differential Methylation
+
+```{r}
+### calculate differential methylation with methylKit
+# filter for greater than 25 reads
+myobj_filt <- filterByCoverage(myobj, lo.count = 25, hi.count = 99.5)
+
+# combine all the samples into one table
+meth <- methylKit::unite(myobj_filt, destrand = FALSE)
+
+# get percent methylation
+perc_meth <- percMethylation(meth)
+
+# calculate differential methylation
+mydiff <- calculateDiffMeth(meth)
+```
+
+#### Save Data and Results
+
+```{r}
+### save tables
+# OPTIONAL: pre-test combined sample table, wide
+cbind(as_tibble(meth), as_tibble(perc_meth)) %>%
+# methylKit doesn't keep the sample names around in the table, so rename, this will be different every time
+  select(chr, start, end, strand, coverage1:numTs1, F01, coverage2:numTs2, F06,
+         coverage3:numTs3, F07, coverage4:numTs4, F14, coverage5:numTs5, F17,
+         coverage6:numTs6, F19, coverage7:numTs7, M02, coverage8:numTs8, M05,
+         coverage9:numTs9, M07, coverage10:numTs10, M13, coverage11:numTs11, M14,
+         coverage12:numTs12, M15) -> mk_data_wide
+#write_tsv(mk_data_wide, 'methylkit_selected_data.tsv')
+
+# differential methylation test results
+as_tibble(mydiff) -> mk_diff
+#write_tsv(mk_diff, 'diff_meth_methylkit_cov10.tsv')
+
+# OPTIONAL: combined original data, test results table
+cbind(as_tibble(mydiff), as_tibble(perc_meth)) %>%
+  mutate(ucsc_1kb = paste0(chr, ':', start, '-', end)) %>%
+  dplyr::rename(F01_young = F01, F06_young = F06, F07_young = F07,
+                F14_old = F14, F17_old = F17, F19_old = F19,
+                M02_young = M02, M05_young = M05, M07_young = M07,
+                M13_old = M13, M14_old = M14, M15_old = M15) %>%
+    select(chr, start, end, ucsc_1kb, everything()) -> mk_diff_wide
+#write_tsv(mk_diff_wide, 'meth_diff_methylkit_cov25_wide.tsv')
+```
+
+```{r}
+read_tsv('meth_diff_methylkit_cov10_wide.tsv') -> mk_data_wide
+```
+
+### Visualize
+
+#### Histograms
+
+% Methylation
+
+```{r}
+mk_data_wide %>%
+  gather(sample, perc_meth, c('F01', 'F06', 'F07', 'F14', 'F17', 'F19', 
+                              'M02', 'M05', 'M07', 'M13', 'M14', 'M15')) %>%
+ggplot(aes(x = perc_meth)) +
+  geom_histogram(bins = 20, 
+                 color = 'black', 
+                 fill = rep(c(rep('deepskyblue1', 60), 
+                              rep('deepskyblue4', 60)), 2)) +
+  facet_wrap(~ sample, ncol = 3) +
+  labs(x = '% methylation per base', y = 'Frequency') +
+  theme_classic() +
+  theme(legend.position = 'none',
+        axis.title = element_text(size = 16),
+        axis.text = element_text(size = 12),
+        strip.text = element_text(size = 12))
+#ggsave('perc_meth_histograms_methylkit_sites.png', width = 10, height = 10)
+```
+
+Coverage
+
+```{r}
+mk_data_wide %>% 
+  select(starts_with('coverage')) %>% 
+  base::colnames() %>%
+  enframe(value = 'cov_name') %>%
+  mutate(sample = c('F01', 'F06', 'F07', 'F14', 'F17', 'F19', 
+                    'M02', 'M05', 'M07', 'M13', 'M14', 'M15')) %>%
+  select(-name) -> cov_gather_list
+
+mk_data_wide %>%
+  gather(cov_name, coverage, cov_gather_list$cov_name) %>%
+  left_join(cov_gather_list) %>%
+
+ggplot(aes(x = coverage)) +
+  geom_histogram(bins = 20, 
+                 color = 'black', 
+                 fill = rep(c(rep('chartreuse3', 60), 
+                              rep('darkgreen', 60)), 2)) +
+  facet_wrap(~ sample, ncol = 3) +
+  labs(x = 'read coverage per base', y = 'Frequency') +
+  theme_classic() +
+  theme(legend.position = 'none',
+        axis.title = element_text(size = 16),
+        axis.text = element_text(size = 12),
+        strip.text = element_text(size = 12))
+#ggsave('coverage_histograms_methylkit_sites.png', width = 10, height = 10)
+```
+
+#### `methylKit` correlation plot
+
+```{r}
+png('methylkit_corr_plot.png', width = 960, height = 960)
+getCorrelation(meth, plot = T)
+dev.off()
+```
+
+#### Volcano Plot
+
+```{r}
+### volcano plot
+# get annotations for volcano plot
+mk_diff %>%
+  mutate(sig = case_when(qvalue < 0.05 & meth.diff < -5 ~ 'hypo',
+                         qvalue < 0.05 & meth.diff > 5 ~ 'hyper',
+                         TRUE ~ 'not_sig')) %>%
+  group_by(sig) %>%
+  count() %>%
+  ungroup() %>%
+  mutate(perc = round(((n / nrow(mk_diff)) * 100), 2)) %>%
+  filter(sig != 'not_sig') %>%
+  mutate(meth.diff = c(30, -30), log_qvalue = 25,
+         label = paste0(n, ', ', perc, '%')) -> labels
+
+mk_diff %>% 
+  filter(!chr %in% c('chrX', 'chrY', 'chrM')) %>%
+  mutate(log_qvalue = -log10(qvalue),
+         sig_qvalue = ifelse(qvalue < 0.05, 'sig', 'notsig')) %>%
+ggplot(aes(x = meth.diff, y = log_qvalue)) +
+  geom_point(aes(color = sig_qvalue), alpha = 0.2) +
+  scale_color_manual(values = c('black', 'firebrick3')) +
+  geom_vline(xintercept = c(-5, 5), linetype = 'dashed', color = 'gray60') +
+  geom_hline(yintercept = -log10(0.05), linetype = 'dashed', color = 'gray60') +
+  geom_text(data = labels, aes(label = label), size = 6) +
+  labs(x = 'Change in % Methylation (Slope)', y = '-Log10 QValue') +
+  theme_classic() +
+  theme(legend.position = 'none',
+        axis.title = element_text(size = 16),
+        axis.text = element_text(size = 12))
+# ggsave('volc_methylkit_qvalue_cov10_label.png')
+```
+
+
+
+

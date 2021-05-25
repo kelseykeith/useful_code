@@ -1,0 +1,35 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggforce)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Draw an Ellipse Over Data Using `ggforce::geom_ellipse()`
+
+```{r}
+iris %>%
+# aesthetics can NOT be in the main ggplot call, because they will be broadcast
+# to ggforce::geom_ellipse() and we want to totally specify the coordinates for
+# that independently
+ggplot() +
+  geom_point(aes(x = Sepal.Length, y = Sepal.Width, color = Species)) +
+# x0 and y0 specify the center points of the ellipse, while a and b specify the
+# width of the ellipse in the y and x directions respectively, and finally 
+# angle gives the angle off of the horizontal. There's not a great way to figure
+# the values out; I took my best guess and tweaked the values from there until
+# it looked right
+  ggforce::geom_ellipse(aes(x0 = 5.2, y0 = 3.65, a = 0.5, b = 1.4, angle = 40),
+                        linetype = 'dashed', color = '#F8766D') +
+  ggforce::geom_ellipse(aes(x0 = 6.5, y0 = 2.75, a = 1, b = 2, angle = 90),
+                        linetype = 'dashed', color = '#20B07A') +
+  theme_bw()
+```
+
+
+<br><br>
+
