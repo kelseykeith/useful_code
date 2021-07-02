@@ -1,0 +1,84 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(tidyverse)
+
+library(SuperExactTest)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Testing for the Intersection of Sets with `SuperExactTest`
+
+"The inputs for SuperExactTest include a list of vectors corresponding to multiple sets and the size of the background population from which the sets are sampled. The package enumerates the elements shared by every possible combination of the sets and then computes FE and the one-side probability for assessing statistical significance of each observed intersection. A generic summary function was implemented to tabulate all possible intersections, observed and expected sizes, FE values as well as probability values of significance tests."
+
+Package: <https://github.com/mw201608/SuperExactTest/> and Paper: <https://www.nature.com/articles/srep16923>
+
+---
+
+```{r}
+### load example data from the package
+data(eqtls)
+
+### make it into a skinny tibble since that's how  
+cis.eqtls %>%
+  enframe(name = 'gene_set', value = 'gene') %>%
+  unnest(c(gene)) -> data_skinny
+```
+
+`supertest()` takes named lists of features in sets and the total number of features detected. The `total` number of genes 18,196 comes from the `SuperExactTest` vignette.
+
+```{r}
+# nest the features into a list-column and then run supertest()
+# supertest() takes the lists and the number of features detected
+data_skinny %>%
+  group_by(gene_set) %>%
+  summarize(genes = list(gene)) %>%
+  ungroup() %$%
+  supertest(genes, n = 18196) -> res
+```
+
+Results
+
+```{r}
+# x is a named list of all the sets tested
+res$x
+res$x %>% class()
+
+# set.names is a vector of all the set names. So far can't figure out how to
+# name the list when making a tibble list-column so they're just Set1, Set2, etc
+# and would have to be matched back up with the original table
+res$set.names
+res$set.names %>% class()
+
+# n is the background/the total number of features detected
+res$n
+
+# overlap.sizes is a named vector of the overlap between sets. The names tell
+# you which sets they are. For example 0001 is the number of unique features in 
+# Set4 since there's a 1 in the fourth position while, 0110 is the features in
+# sets 2 and 3 and NOT 1 and 4
+res$overlap.sizes
+res$overlap.sizes %>% class()
+
+# overlap.expected is a named vector of the number of features you'd expected 
+# to overlap by chance given the total number of features detected for each 
+# combination of sets
+res$overlap.expected
+
+# P.value is a name vector of the p values for the intersection of all the sets
+res$P.value
+```
+
+The `SuperExactTest` package also has a function to plot UpSet plots of the results
+
+```{r}
+plot(res, sort.by = 'size')
+plot(res, Layout = 'landscape', sort.by = 'size')
+```
+
+
