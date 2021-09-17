@@ -1,0 +1,67 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(tidyverse)
+library(vroom)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Beads on a String Plot
+
+
+
+```{r}
+vroom('beads_on_a_string_methclone_example.tsv') -> data
+```
+
+```{r}
+# make the data skinny
+data %>%
+  select(sample_id:end, loci, `s0:0000`:`s0:1111`) %>%
+  pivot_longer(`s0:0000`:`s0:1111`, names_to = 'epiallele', values_to = 'perc_meth') %>%
+  mutate(epiallele = str_remove(epiallele, 's0:'),
+         perc_meth = round(perc_meth)) -> percentages
+
+### replicate rows based on percent methylation
+epi_heatmap <- NULL
+for (row in 1:nrow(percentages)) {
+    epi_cont = percentages$perc_meth[row]
+    if(epi_cont == 0){next}
+    for (i in 1:epi_cont) {
+      epi_heatmap = rbind(epi_heatmap, percentages[row,])
+  }
+}
+
+# split the epialleles up for plotting
+epi_heatmap %>%
+  mutate(allele_sum = str_count(epiallele, '1'),
+         CpG1 = substring(epiallele, 1, 1),
+         CpG2 = substring(epiallele, 2, 2),
+         CpG3 = substring(epiallele, 3, 3),
+         CpG4 = substring(epiallele, 4, 4)) %>%
+  arrange(allele_sum, CpG1) %>%
+  mutate(read = n():1) %>%
+  pivot_longer(CpG1:CpG4, names_to = 'CpG', values_to = 'is_read') -> plot_ready
+```
+
+```{r, fig.width = 10}
+ggplot(plot_ready, aes(x = read, y = CpG)) +
+  geom_tile(fill = 'white') +
+  geom_point(aes(color = is_read), size = 3) +
+  scale_color_manual(values = c('gray80', 'black')) +
+  labs(x = '', y = '') +
+  coord_fixed() +
+  theme_classic() +
+  theme(legend.position = 'none',
+        axis.ticks = element_blank(),
+        axis.line = element_blank(),
+        axis.text = element_blank())
+```
+
+
+

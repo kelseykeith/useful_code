@@ -1,0 +1,35 @@
+---
+title: ""
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Black Outline Around `ggplot` Scatterplot Points
+
+### The Hacky Way: Plotting an Extra Set of Black Points Behind Your Points
+
+```{r}
+ggplot(iris, aes(x = Sepal.Width, y = Sepal.Length,)) +
+### points behind the points you actually want to display have to be slightly
+### larger than the points; default point size is 
+  geom_point(aes(shape = Species), size = 2) +
+  geom_point(aes(shape = Species, color = Species))
+```
+
+### The Kinda Legit Way: Change the Point Type to a Fillable One
+
+R has 25 different point shapes; `ggplot` uses 16, a solid point, as the default. But you can use shapes that have both an outline and a fillable area, like 21, the fillable circle and then specify both fill and color aesthetics like you do for other `ggplot` geoms. Point shapes here <https://www.r-bloggers.com/2021/06/r-plot-pch-symbols-different-point-shapes-in-r/>
+
+```{r}
+ggplot(iris, aes(x = Sepal.Width, y = Sepal.Length,)) +
+  geom_point(aes(shape = Species, fill = Species), color = 'black') +
+  scale_shape_manual(values = c(21, 22, 24)) +
+  scale_fill_manual(values = c('firebrick3', 'forestgreen', 'deepskyblue4'))
+```
+
+
