@@ -1,0 +1,45 @@
+---
+title: ""
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Get TCGA Patient/Participant IDs from TCGA Filenames using `TCGAutils`
+
+
+
+```{r}
+### if you don't have the package, install
+# BiocManager::install('TCGAutils')
+```
+
+```{r}
+c("0000772b-773d-4cf8-8baf-0e1e6dbf55e8.htseq.counts.gz",
+  "003d640d-3bfc-4791-b241-4a3206d49468.htseq.counts.gz",
+  "00511204-3512-4a5e-b664-60271e968903.htseq.counts.gz",
+  "00587432-3004-4d4b-9dc2-8c90c81f7640.htseq.counts.gz",
+  "0094a627-a55f-48dc-bbc3-ea66035e514a.htseq.counts.gz") -> filenames
+```
+
+The TCGA barcodes give you human-readable information about the sample, TCGA-TSS-Participant-(Sample[Numeric])(Vial[Letter])-(Portion[Numerc])(Analyte[Letter])-Plate-Center
+
+So for TCGA-AC-A3OD-01B-06R-A22O-07:
+- TCGA-AC is the tissue source site (TSS), which is the institution the sample was collected
+- TCGA-AC-A3OD is the participant ID
+- TCGA-AC-A3OD-01B is the sample ID, where if the number is less than 10 it's a tumor sample or if the number is between 10 and 14 it's a normal samples or if it's none of the above <https://gdc.cancer.gov/resources-tcga-users/tcga-code-tables/sample-type-codes>
+- etc...
+
+```{r}
+TCGAutils::filenameToBarcode(filenames) -> results
+
+### probably want to subset the aliquots.submitter_id to just get the patient or sample IDs
+# patient/participant ID
+dplyr::mutate(results, patient_id = stringr::str_remove(full_sample_id, '-[0-9]{2}[A-z]$'))
+# OR sample ID
+dplyr::mutate(results, patient_id = stringr::str_remove(full_sample_id, '^TCGA-[A-z,0-9]{2}-[A-z,0-9]{4}-[0-9]{2}[A-z]'))
+```
+
+

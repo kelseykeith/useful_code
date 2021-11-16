@@ -1,0 +1,30 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(patchwork)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Specify Plot Labels in `patchwork`
+
+```{r}
+ggplot(iris, aes(x = Sepal.Width, y = Sepal.Length)) +
+  geom_point() -> p1
+
+ggplot(iris, aes(x = Petal.Width, y = Petal.Length)) +
+  geom_point() -> p2
+```
+
+```{r}
+(p1 | p2) + plot_annotation(tag_levels = 'A')
+((plot_spacer() | p1) / (p2 | plot_spacer())) + plot_annotation(tag_levels = list(c('C', 'D')))
+
+# plot_annotation(tag_levels = list(c('B', 'C', 'D', 'E', 'F', 'G'), 'A'))
+list(c('B', 'C', 'D', 'E', 'F', 'G'), 'A')
+list(c('B'),)
+```
