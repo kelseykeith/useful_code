@@ -1,0 +1,50 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(magrittr)
+
+### also requires, but calls functions with packgae:: the following:
+# library(tibble)
+# library(plyranges)
+# library(IRanges)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Combine Neighboring CpGs/Ranges Together
+
+Sometimes you want to combine multiple neighboring Ranges together, typically (for me), neighboring CpGs that I want to connect into methylation regions rather than individual sites.
+
+### Simulate Data
+
+Simulating some individual CpG sites that I want to combine together
+
+```{r}
+set.seed(42)
+tibble::tibble(seqnames = rep(c('chr1', 'chr2'), c(10, 5)),
+               start = c(sample(1:100, 5),
+                         sample(1000:2000, 5),
+                         sample(1:100, 5)),
+               width = 1) %>%
+  plyranges::as_granges() -> gr
+```
+
+### Combine into Blocks Using `IRanges::reduce()`
+
+```{r}
+gr
+
+gr %>%
+# Can set the maximum distance between CpGs using, confusingly min.gapwidth
+# Here CpGs 50 bp apart with be merged; anything 51 bp or more apart will not be
+  IRanges::reduce(min.gapwidth = 51)
+```
+
+
+
+
+
+
+
