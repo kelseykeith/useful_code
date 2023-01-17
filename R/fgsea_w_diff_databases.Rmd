@@ -1,0 +1,157 @@
+---
+title: "`fgsea`"
+output: html_document
+date: "2023-01-17"
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+dyn.load('/opt/R/arm64/gfortran/lib/libgfortran.5.dylib')
+library(fgsea)
+
+### required but not explicitly loaded to improve speed and reduce namespace 
+### conflicts
+# library(reactome.db)
+# library(msigdb)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## `fgsea`
+
+- Reactome
+- KEGG
+- MSigDB (Hallmark, C2CP pathways, and C5 pathways [GO])
+
+---
+
+#### Load the Example Data from the Package
+
+```{r}
+data("exampleRanks")
+```
+
+<br>
+---
+---
+<br>
+
+## Using `fgsea` With Various Pathway Databases
+
+### `fgsea` Using the Built-In `Reactome` Database
+
+#### Test
+
+Load the Reactome database using the built-in pathway functions
+
+```{r}
+### load built-in Reactome pathways
+# when doing this you need to provide all the gene names in your dataset
+reactome_pathways <- reactomePathways(names(exampleRanks))
+```
+
+Run the pathway analysis. You need to specify the list with the pathways, your vector with the genes and their significance, and, optionally, the number of permutations for the empirical p-value calculation. Should only need to specify the number of permutations if you have a small sample size and need to reduce from the default.
+
+```{r}
+### calculate the pathway enrichment using the example data and the reactome
+### pathways loaded above
+fgsea_res <- fgsea(pathways = reactome_pathways, 
+                   stats = exampleRanks)
+```
+
+#### Results
+
+Look at the results! The `fgsea()` function returns a `data.frame`, which makes it easy to use for plotting or other actions afterwards. The table contains information on how enriched each pathway is in the data and how significantly. You can check this information for yourself in the `fgsea()` function documentation anytime, but the columns are:
+
+- **pathway**: name of the pathway as given in the pathway list
+- **pval**: "significance" of the enrichment score calculated by a permutation test
+- **padj**: p-value adjusted for multiple testing using Benjamini-Hotchberg (BH)
+- **ES**: pathway enrichment score; positive for upregulated and negative for downregulated
+- **NES**: enrichment score normalized by permutation test
+- **nMoreExtreme**: the number of times a random gene set had a more extreme enrichment enrichment value in the permutations (out of 10,000 here because that's the number of permutations we specified)
+- **size**: number of genes present in the data in the pathway
+- **leadingEdge**: vector of genes that drive the enrichment
+
+To get the genes out of the leadingEdge column, use the `tidyr::unnest()` function. Note that everything in the row that was already there gets duplicated for each gene name that was in the nested vector.
+
+```{r}
+# fgsea() returns a data.frame! YAY!!
+fgsea_res %>% class()
+# look at the data
+fgsea_res %>% filter(pathway == "Cell Cycle")
+# get the genes that are driving the enrichment score
+fgsea_res %>%
+  unnest(c(leadingEdge))
+```
+
+#### Visualize Results
+
+If there's a particular pathway of interest, you can plot the cumulative enrichment curve for it using the pathways and data used to calculate the gene set enrichment, using `fgsea`'s `plotEnrichment()` function. It returns a `ggplot` object, so you can modify it using `ggplot` arguments somewhat.
+
+```{r}
+plotEnrichment(reactome_pathways[["Cell Cycle"]],
+               exampleRanks) +
+  labs(title = "Cell Cycle")
+# The black lines on the x-axis, the rug, represent genes that are in the 
+# pathway. It's easy to see in the pathway below where only 2 genes from the 
+# data are in it.
+plotEnrichment(reactome_pathways[["5-Phosphoribose 1-diphosphate biosynthesis"]],
+               exampleRanks) +
+  labs(title = "Cell Cycle")
+
+# does return a ggplot plot, so can modify using standard ggplot arguments
+plotEnrichment(reactome_pathways[["Cell Cycle"]],
+               exampleRanks) %>% class()
+```
+
+Look at the top 10 most up- and down-regulated statistically significant pathways.
+
+```{r}
+fgsea_res %>% 
+  as_tibble() %>% 
+# filter for significant pathways
+  filter(padj < 0.05) %>% 
+# arrange by the normalized enrichment score
+  arrange(NES) %>% 
+# get the first and last 10 rows which will be the 10 most up- and down- 
+# regulated pathways
+  mutate(rownum = row_number()) %>%
+  filter(rownum %in% c(1:10, (max(rownum - 9)):max(rownum))) %>%
+# the pathway names can be long, so if they're over 20 characters, subset them
+# otherwise use the whole name
+  mutate(pathway_short = ifelse(nchar(pathway) <= 30, 
+                                pathway, 
+                                paste0(str_sub(pathway, start = 1, end = 27), 
+                                       '...'))) %>%
+ggplot(aes(x = reorder(pathway_short, NES), y = NES)) +
+  geom_col(aes(fill = padj)) +
+  scale_fill_viridis() +
+  coord_flip() +
+  labs(x = 'Pathway', 
+       y = 'Normalized Enrichment Score (NES)', 
+       fill = 'Q-Value') +
+  theme_minimal(base_size = 16)
+```
+
+<br>
+
+### KEGG
+
+<br>
+
+### MSigDB
+
+```{r cars}
+fgsea::gmtPathways('~/Downloads/h.all.v2022.1.Hs.entrez.gmt') %>% head()
+
+fgsea::gmtPathways('~/Downloads/h.all.v2022.1.Hs.symbols.gmt') %>% head()
+
+jsonlite::read_json('~/Downloads/h.all.v2022.1.Hs.json') %>% as_tibble()
+```
+
+
+
+
+
+<br><br>
+

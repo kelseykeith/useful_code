@@ -1,0 +1,36 @@
+---
+title: ""
+output: html_document
+date: "2023-01-13"
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## How to Use `dplyr::filter()` with `across()` To Filter All Columns for Some Expression
+
+<https://community.rstudio.com/t/using-filter-with-across-to-keep-all-rows-of-a-data-frame-that-include-a-missing-value-for-any-variable/68442/6>
+
+```{r}
+airquality %>%
+  # dropping because too many NAs and I want a simpler example
+  select(-Ozone) %>%
+  filter(across(.cols = everything(), .fns = any_vars(is.na(.))))
+```
+Or with more specific columns and like some summary function. `across()` uses any of the 
+
+```{r}
+# can also do with any_of() where the only difference is that any_of() won't 
+# throw an error if the column doesn't exist
+airquality %>%
+  summarize(across(.cols = all_of(c('Solar.R', 'Wind', 'Temp')), .fns = ~ mean(.x, na.rm = T)))
+
+airquality %>%
+  summarize(across(.cols = contains('e'), .fns = ~ mean(.x, na.rm = T)))
+
+airquality %>%
+  summarize(across(.cols = matches('^[WT]'), .fns = ~ mean(.x, na.rm = T)))
+```
