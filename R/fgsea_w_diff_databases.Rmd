@@ -6,12 +6,18 @@ date: "2023-01-17"
 
 ```{r setup, include=FALSE}
 library(tidyverse)
-dyn.load('/opt/R/arm64/gfortran/lib/libgfortran.5.dylib')
+# was having issues with my local machine finding gfortran; specifying the path
+# was suggested to fix the issue, but there's probably some issue with my 
+# gcc/gfortran install because this didn't fix the issue
+# dyn.load('/opt/R/arm64/gfortran/lib/libgfortran.5.dylib')
 library(fgsea)
 
 ### required but not explicitly loaded to improve speed and reduce namespace 
 ### conflicts
 # library(reactome.db)
+# library(viridis)
+# library(KEGGREST)
+# library(org.Mm.eg.db)
 # library(msigdb)
 
 knitr::opts_chunk$set(echo = TRUE)
@@ -19,6 +25,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## `fgsea`
 
+Using the Fast Gene Set Enrichment `fgsea` package for pathway analysis in RNA-seq <https://bioconductor.org/packages/release/bioc/html/fgsea.html>
+
+Databases demoed:
 - Reactome
 - KEGG
 - MSigDB (Hallmark, C2CP pathways, and C5 pathways [GO])
@@ -27,8 +36,12 @@ knitr::opts_chunk$set(echo = TRUE)
 
 #### Load the Example Data from the Package
 
+This is a named list of mouse Entrez IDs (name) with their test statistics (value)
+
 ```{r}
 data("exampleRanks")
+
+exampleRanks %>% head()
 ```
 
 <br>
@@ -125,7 +138,7 @@ fgsea_res %>%
                                        '...'))) %>%
 ggplot(aes(x = reorder(pathway_short, NES), y = NES)) +
   geom_col(aes(fill = padj)) +
-  scale_fill_viridis() +
+  viridis::scale_fill_viridis() +
   coord_flip() +
   labs(x = 'Pathway', 
        y = 'Normalized Enrichment Score (NES)', 
@@ -137,16 +150,112 @@ ggplot(aes(x = reorder(pathway_short, NES), y = NES)) +
 
 ### KEGG
 
+Get KEGG database info using the `KEGGREST` package <https://bioconductor.org/packages/release/bioc/html/KEGGREST.html>
+
+```{r}
+org <- KEGGREST::keggList("organism")
+# find the abbreviation for mouse
+org %>% as.data.frame() %>% filter(str_detect(tolower(species), 'mus'))
+# NOTE: mouse is "mmu" and human is "hsa", so to change this code over to human
+# you just need to swap mmu for hsa and switch to the human org.db
+
+# simplest version to just load a named vector of (human/hsa) pathways
+# KEGGREST::keggLink(target = "pathway", source = "hsa") -> kegg_pathways
+
+### load all the mouse pathways needed to run pathway analysis
+# The names in the vector of returned pathways are gene names in the format 
+# "KEGG_SPECIES_ABBREVIATION:ENTREZ_ID. Transform the vector into a tibble, 
+# remove the extra "mmu:" and get the ensembl and gene names (using 
+# AnnotationDbi::mapIds()) which you'll probably want later for reference
+KEGGREST::keggLink("pathway", "mmu") %>% 
+  tibble(pathway = ., eg = sub("mmu:", "", names(.))) %>%
+  mutate(symbol = AnnotationDbi::mapIds(org.Mm.eg.db::org.Mm.eg.db, eg, 
+                                        "SYMBOL", "ENTREZID"),
+        ensembl = AnnotationDbi::mapIds(org.Mm.eg.db::org.Mm.eg.db, eg, 
+                                        "ENSEMBL", "ENTREZID")) -> kegg_paths
+
+
+### load all the pathway descriptions which you'll want later to annotate
+### the results using KEGGREST::keggList()
+KEGGREST::keggList("pathway", "mmu") %>% 
+    tibble(pathway = names(.), description = .) -> kegg_paths_description
+
+
+### combine pathway identifiers with the de
+left_join(kegg_paths, 
+          kegg_paths_description, by = 'pathway') -> kegg_paths_anno
+
+
+### format the pathway descriptions with their Entrez IDs for running fgsea,
+### only keep pathways that contain a gene that was detected
+hsa_kegg_anno %>%
+  filter(eg %in% names(exampleRanks)) %>%
+  select(pathway, eg) %>%
+  unstack(eg ~ pathway) -> kegg_pathway_list
+```
+
+Run `fgsea` with the kegg pathways
+
+```{r}
+fgsea_res_kegg <- fgsea(pathways = kegg_pathway_list, 
+                        stats = exampleRanks)
+
+### look at the results
+fgsea_res_kegg
+
+### we got the pathway descriptions so you could join back and get an 
+### human-intelligible name for the pathway
+fgsea_res_kegg %>%
+  left_join(distinct(select(kegg_paths_anno, pathway, description)), 
+            by = 'pathway') %>%
+  select(pathway, description, everything()) %>%
+  # may also want to remove the species name at the end of every pathway 
+  # description since it's redundant
+  mutate(description = str_remove(description, " - Mus musculus \\(house mouse\\)"))
+```
+
 <br>
 
 ### MSigDB
 
+#### Using the `msigdb` Package
+
+<https://bioconductor.org/packages/release/data/experiment/html/msigdb.html>
+
+```{r}
+msigdb.mm <- msigdb::getMsigdb(org = 'mm', id = 'EZID')
+```
+
+```{r}
+### subsetting the collections you want
+msigdb::listCollections(msigdb.mm)
+
+msigdb::listSubCollections(msigdb.mm)
+
+# hallmark collections
+msigdb::subsetCollection(msigdb.mm, 'h') %>%
+# transforms into list format needed for fgsea
+  GSEABase::geneIds() -> msigdb.mm_hallmarks
+
+# gene ontology biological processes
+msigdb::subsetCollection(msigdb.mm, 'c5', 'GO:BP') %>%
+  GSEABase::geneIds()
+```
+
+Run `fgsea` with the kegg pathways
+
+```{r}
+fgsea_res_msigdb <- fgsea(pathways = msigdb.mm_hallmarks, 
+                          stats = exampleRanks)
+
+### look at the results
+fgsea_res_msigdb
+```
+
+#### Using Files Directly from MSigDB
+
 ```{r cars}
 fgsea::gmtPathways('~/Downloads/h.all.v2022.1.Hs.entrez.gmt') %>% head()
-
-fgsea::gmtPathways('~/Downloads/h.all.v2022.1.Hs.symbols.gmt') %>% head()
-
-jsonlite::read_json('~/Downloads/h.all.v2022.1.Hs.json') %>% as_tibble()
 ```
 
 
