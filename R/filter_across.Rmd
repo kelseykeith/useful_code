@@ -20,6 +20,7 @@ airquality %>%
   select(-Ozone) %>%
   filter(across(.cols = everything(), .fns = any_vars(is.na(.))))
 ```
+
 Or with more specific columns and like some summary function. `across()` uses any of the 
 
 ```{r}

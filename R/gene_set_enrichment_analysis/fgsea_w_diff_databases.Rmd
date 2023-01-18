@@ -17,8 +17,10 @@ library(fgsea)
 # library(reactome.db)
 # library(viridis)
 # library(KEGGREST)
+# library(AnnotationDbi)
 # library(org.Mm.eg.db)
 # library(msigdb)
+# library(GSEABase)
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -28,9 +30,9 @@ knitr::opts_chunk$set(echo = TRUE)
 Using the Fast Gene Set Enrichment `fgsea` package for pathway analysis in RNA-seq <https://bioconductor.org/packages/release/bioc/html/fgsea.html>
 
 Databases demoed:
-- Reactome
-- KEGG
-- MSigDB (Hallmark, C2CP pathways, and C5 pathways [GO])
+- Reactome <https://reactome.org/>
+- KEGG <https://www.genome.jp/kegg/>
+- MSigDB <http://www.gsea-msigdb.org/gsea/msigdb/human/collections.jsp>
 
 ---
 
@@ -218,21 +220,34 @@ fgsea_res_kegg %>%
 
 ### MSigDB
 
+Home <http://www.gsea-msigdb.org/gsea/msigdb/index.jsp>
+  - Human <http://www.gsea-msigdb.org/gsea/msigdb/human/collections.jsp>
+  - Mouse <http://www.gsea-msigdb.org/gsea/msigdb/mouse/collections.jsp>
+
 #### Using the `msigdb` Package
 
-<https://bioconductor.org/packages/release/data/experiment/html/msigdb.html>
+Using the `msigdb` package <https://bioconductor.org/packages/release/data/experiment/html/msigdb.html> to fetch the MSigDB gene sets. MSigDB also contains other gene sets that you can fetch as well which you can read about on the site. 
+
+---
+
+Get the MSigDB database in the form of a `GeneSet` object
 
 ```{r}
-msigdb.mm <- msigdb::getMsigdb(org = 'mm', id = 'EZID')
+msigdb.mm <- msigdb::getMsigdb(org = 'mm', id = 'EZID', version = '7.4')
 ```
+
+It's not recommended, nor is it logical, to run pathway analysis against all the MSigDB gene lists. Here we'll subset the `GeneSet` object for the list(s) we want and reformat as a list for `fgsea`.
 
 ```{r}
 ### subsetting the collections you want
+# you can read more about what each collection and subcollection contains at the
+# human and mouse links above
 msigdb::listCollections(msigdb.mm)
 
 msigdb::listSubCollections(msigdb.mm)
 
-# hallmark collections
+### some examples
+# hallmark collections; this is the main one, so we'll use for demo
 msigdb::subsetCollection(msigdb.mm, 'h') %>%
 # transforms into list format needed for fgsea
   GSEABase::geneIds() -> msigdb.mm_hallmarks
@@ -254,8 +269,18 @@ fgsea_res_msigdb
 
 #### Using Files Directly from MSigDB
 
-```{r cars}
-fgsea::gmtPathways('~/Downloads/h.all.v2022.1.Hs.entrez.gmt') %>% head()
+`fgsea` also has a function `gmtPathways()` that allows you to read pathway information from GMT files. The mouse MSigDB Hallmark Gene Sets were downloaded from <http://www.gsea-msigdb.org/gsea/msigdb/download_file.jsp?filePath=/msigdb/release/2022.1.Mm/mh.all.v2022.1.Mm.entrez.gmt> on *2023-01-18*.
+
+```{r}
+### read in the file
+fgsea::gmtPathways('mh.all.v2022.1.Mm.entrez.gmt') -> msigdb_hallmarks_gmt
+
+### run pathway analysis
+fgsea_res_msigdb_gmt <- fgsea(pathways = msigdb_hallmarks_gmt, 
+                              stats = exampleRanks)
+
+### look at the results
+fgsea_res_msigdb_gmt
 ```
 
 
