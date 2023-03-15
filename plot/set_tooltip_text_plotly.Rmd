@@ -1,0 +1,97 @@
+---
+title: ""
+output: html_document
+date: "2023-02-07"
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(viridis)
+library(plotly)
+library(ggbeeswarm)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setting Mouseover/Tooltip Text in `plotly` Interactive Plots
+
+By default, `plotly::ggplotly()` tooltip/mouseover text shows the values of the variables for that point, or for distributions shows the summary values of the distribution. You can specify the text yourself either for formatting purposes or to include data that isn't otherwise displayed on the plot.
+
+### Scatterplot
+
+```{r}
+### defaults
+diamonds %>%
+  # filtered for color only because there are a lot of data points and the 
+  # interactive plot was sluggish
+  filter(color == 'J') %>%
+ggplot(aes(x = carat, y = depth, color = clarity)) +
+  scale_color_viridis(discrete = T) +
+  geom_point() +
+  theme_bw() -> scatter_default
+ggplotly(scatter_default)
+```
+
+```{r}
+### setting the text manually
+# adding to the end
+diamonds %>%
+  filter(color == 'J') %>%
+  # you can just add on another variable to the text geom and it will be added
+  # 
+  mutate(text = paste0('cut = ', cut)) %>%
+ggplot(aes(x = carat, y = depth, color = clarity, text = text)) +
+  scale_color_viridis(discrete = T) +
+  geom_point() +
+  theme_bw() -> scatter_manual1
+# default tooltip is set to all variables
+ggplotly(scatter_manual1, tooltip = 'all')
+
+# specifying the whole thing yourself
+diamonds %>%
+  filter(color == 'J') %>%
+  # don't forget the \n at the end or everything will be on one line
+  mutate(text = paste0('carat = ', carat, '\n',
+                       'depth = ', depth, '\n',
+                       'clarity = ', clarity, '\n',
+                       'cut = ', cut)) %>%
+ggplot(aes(x = carat, y = depth, color = clarity, text = text)) +
+  scale_color_viridis(discrete = T) +
+  geom_point() +
+  theme_bw() -> scatter_manual2
+# have to set tooltip = 'text' so you will get only your manual specification
+ggplotly(scatter_manual2, tooltip = 'text')
+```
+
+### Boxplot
+
+NOTE: This doesn't work
+
+```{r}
+### default
+diamonds %>%
+  filter(color == 'J') %>%
+ggplot(aes(x = clarity, y = depth, fill = cut)) +
+  geom_boxplot() +
+  scale_fill_viridis(discrete = T) +
+  theme_bw() -> boxplot_default
+ggplotly(boxplot_default)
+
+### with specified text
+diamonds %>%
+  filter(color == 'J') %>%
+  mutate(text = cut) %>%
+ggplot(aes(x = clarity, y = depth, fill = cut)) +
+  geom_boxplot() +
+  scale_fill_viridis(discrete = T) +
+  theme_bw() -> boxplot_labeled
+ggplotly(boxplot_labeled, hoverinfo = 'text') %>% 
+  # style(text = 'text')
+  layout(hoverinfo = 'none')
+```
+
+
+
+<br><br>
+

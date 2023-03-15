@@ -16,7 +16,7 @@ egrep -lir --include=* "CNV_SCHEMA" .
 Arguments:
 - flags
   - r = recursive
-  - i = 
+  - i = case insensitive
   - l = return names of files only, otherwise returns "file_name: line with text searched for"
 - include
 - string you're searching for in ""
