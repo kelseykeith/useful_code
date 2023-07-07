@@ -1,0 +1,58 @@
+---
+title: ""
+output: html_document
+date: "2023-07-07"
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(fgsea)
+
+### used but not explicitly loaded to prevent package conflicts
+#library(KEGGREST)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Fast Gene Set Enrichment Analysis (fgease)
+
+Databases:
+
+- curated gene sets
+  - Reactome
+  - KEGG
+  - Wikipathways
+  - BioCarta
+- ontology gene sets
+  - GO
+  - HPO
+
+
+```{r}
+
+```
+
+#### Using KEGG Pathways with the `KEGGREST` Package
+
+
+
+```{r}
+KEGGREST::keggLink("pathway", "hsa") %>% 
+    tibble(pathway = ., eg = sub("hsa:", "", names(.))) %>%
+  mutate(pathway_name = map(pathway, ~ try(KEGGREST::keggGet(.)[[1]]$NAME))) %>%
+  unnest(c(pathway_name)) -> kegg_pathways
+# one time overwite, forgot to add the unnest in in the path above
+# kegg_pathways %>% unnest(c(pathway_name)) -> kegg_pathways
+
+### format for fgsea pathway analysis
+kegg_pathways %>%
+  filter(eg %in% soma_proteins$EntrezGeneID) %>%
+  distinct(pathway) -> kegg_pathways_w_soma_proteins
+
+kegg_pathways %>%
+  filter(pathway %in% kegg_pathways_w_soma_proteins$pathway) %>%
+  dplyr::select(-pathway_name) %>%
+  unstack(eg ~ pathway) -> kegg_pathways_fgsea
+```
+
+
