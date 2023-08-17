@@ -1,0 +1,98 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-08-17"
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+library(ggnetwork)
+# only for generating example graph
+library(network)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Plotting Graphs with `ggnetwork`
+
+[ggnetwork vignette](https://cran.r-project.org/web/packages/ggnetwork/vignettes/ggnetwork.html)
+
+---
+
+Install packages if necessary
+
+```{r}
+# intall the package if not already installed
+# install.packages('ggnetwork')
+
+# it might also be helpful to install packages for work with graph data
+# install.packages(c('network', 'sna', 'igraph'))
+```
+<br>
+
+### Example Graph Data
+
+```{r}
+# Let’s define a small random graph to illustrate each component of ggnetwork:
+n <- network::network(sna::rgraph(10, tprob = 0.2), directed = FALSE)
+
+# Let’s now add categorical and continuous attributes for both edges and 
+# vertices. We’ll start with nodes, adding a categorical vertex attribute 
+# called "family", which is set to either "a", "b" or "c", and a continuous 
+# vertex attribute called "importance", which is set to either 1, 2 or 3.
+n %v% "family" <- sample(letters[1:3], 10, replace = TRUE)
+n %v% "importance" <- sample(1:3, 10, replace = TRUE)
+
+# We now add a categorical edge attribute called "type", which is set to either 
+# "x", "y" or "z", and a continuous vertex attribute called "day", which is set 
+# to either 1, 2 or 3.
+e <- network.edgecount(n)
+set.edge.attribute(n, "type", sample(letters[24:26], e, replace = TRUE))
+set.edge.attribute(n, "day", sample(1:3, e, replace = TRUE))
+```
+
+<br>
+
+### Plotting
+
+#### Flattening Graph to Table
+
+```{r}
+ggnetwork(n)
+```
+
+#### Plotting
+
+Basic example. `ggnetwork` comes with fortify methods for graphs of class `network` and `igraph` so you can plot those objects directly with `ggplot()`, but may have to pipe through `ggnetwork()` first if the fortify isn't working properly or you don't explicitly load the package
+
+```{r}
+ggplot(n, aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_edges(aes(linetype = type), color = "grey50") +
+  theme_blank()
+
+# may have to pipe to ggnetwork() first if ggplot() isn't working with the 
+# graph time correctly
+n %>%
+  ggnetwork() %>%
+ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_edges(aes(linetype = type), color = "grey50") +
+  theme_blank() 
+```
+
+With more options, like points to represent the nodes as well as text about the graph with coloring based on features in the graph
+
+```{r}
+ggplot(n, aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_edges(color = "black") +
+  geom_nodelabel_repel(aes(color = family, label = LETTERS[ vertex.names ]),
+                       fontface = "bold", box.padding = unit(1, "lines")) +
+  geom_nodes(color = "black", size = 8) +
+  theme_blank()
+```
+
+
+
+
+
+<br>
