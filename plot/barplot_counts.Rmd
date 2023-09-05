@@ -18,7 +18,9 @@ From this stack overflow post <https://stackoverflow.com/questions/26553526/how-
 ggplot(iris, aes(x = Species)) +
   geom_bar(aes(fill = Species), color = 'black') +
 # adds the counts
-  geom_text(stat = 'count', aes(label = ..count..), vjust = -1) +
+# The dot-dot notation (`..count..`) was deprecated in ggplot2 3.4.0 and it now
+# uses after_stat(count) instead
+  geom_text(stat = 'count', aes(label = after_stat(count)), vjust = -1) +
 # might need to adjust the plot area so the counts are nicely visible
   coord_cartesian(ylim = c(0, 55)) +
   theme_classic() +
@@ -37,7 +39,7 @@ iris %>%
 ggplot(aes(x = dummy_variable, fill = Species)) +
   geom_bar(color = 'black', position = 'dodge') +
 # adds the counts
-  geom_text(stat = 'count', aes(label = ..count..), vjust = -1,
+  geom_text(stat = 'count', aes(label = after_stat(count)), vjust = -1,
 # add position_dodge() so that the counts are spaced evenly, may need to play
 # with value
             position = position_dodge(width = 0.9)) +
