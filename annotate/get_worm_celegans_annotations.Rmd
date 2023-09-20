@@ -1,0 +1,51 @@
+---
+title: ""
+output: html_document
+date: "2023-09-20"
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Get *C. elegans* annotations from WormBase through their instance of BioMart using the `biomaRt` package
+
+Also see the BioMart documentation on the WormBase site <https://parasite.wormbase.org/info/Tools/biomart.html#toc8>
+
+### Set Up
+
+Install the package
+
+```{r}
+# if you don't have biomaRt installed, install it
+# BiocManager::install('biomaRt')
+```
+
+Example data
+
+```{r}
+tibble(entrez_id = c(172141, 177793, 184126, 180557, 177388, 171814, 188421, 
+                     186240, 185079, 190250)) -> worm_entrez_ids
+```
+
+### Use WormBase as the Host instead of Ensembl
+
+```{r}
+wormbase <- biomaRt::useMart("parasite_mart", 
+                             dataset = "wbps_gene", 
+                             host = "https://parasite.wormbase.org", port = 443)
+biomaRt::listAttributes(wormbase) # entrezgene_id, hsapiens_gene, hsapiens_gene_name
+
+biomaRt::getBM(attributes = c('entrezgene_id', 'external_gene_id',
+                              'hsapiens_gene_name'),
+               filters = 'entrezgene_id',
+               values = worm_entrez_ids$entrez_id,
+               mart = wormbase) -> worm_names
+```
+
+
+
+
+<br><br>
