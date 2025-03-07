@@ -1,0 +1,37 @@
+---
+output: html_document
+date: "2025-03-07"
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Add Lines Under `ggplot2` axis labels
+
+Solution from Stack Overflow <https://stackoverflow.com/questions/55580769/how-to-add-a-line-under-ggplot-axis-text>
+
+```{r, fig.width = 4, fig.height = 3}
+iris %>%
+ggplot(aes(x = Species, y = Sepal.Length)) +
+  geom_boxplot() +
+  # 1. In order to do things outside the plot area you have to set clip = "off"
+  # in coord_cartesian()
+  # 2. You also have to set the y-axis (or any numeric axis) to fixed coordinates 
+  # because otherwise ggplot will keep adjust the plot area to fit in the 
+  # annotation
+  coord_cartesian(ylim = c(0, 8), clip = "off") +
+  # once the clip is off and axes are fixed you can add lines and text with
+  # annotate(). You just have to play around with coordinates until it looks
+  # right.
+  annotate("segment", x = 0.75, xend = 3.25, y = -1.7, yend = -1.7) +
+  annotate("text", x = 2, y = -2, label = 'irises', size = 3) +
+  # you might also need to give yourself some space between the axis title and
+  # annotations, which I hacked with adding a newline in the axis title
+  labs(x = '\nSpecies') +
+  theme_bw(base_size = 16)
+```
+
+
