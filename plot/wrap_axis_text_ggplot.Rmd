@@ -1,0 +1,48 @@
+---
+output: html_document
+date: "2025-04-28"
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Wrap axis text in `ggplot2`
+
+From this Stack Overflow post <https://stackoverflow.com/questions/21878974/wrap-long-axis-labels-via-labeller-label-wrap-in-ggplot2>
+
+```{r}
+# data is from tidyr package
+# Facility names are long and unwieldly plotted as-is
+cms_patient_care %>% 
+  filter(measure_abbr == 'pain_assessment',
+         type == 'observed') %>% 
+ggplot(aes(x = facility_name, y = score)) +
+  geom_col() +
+  theme_bw() +
+  theme(axis.text = element_text(angle = 90, hjust = 1))
+
+# with wrapped text
+cms_patient_care %>% 
+  filter(measure_abbr == 'pain_assessment',
+         type == 'observed') %>% 
+ggplot(aes(x = facility_name, y = score)) +
+  geom_col() +
+  # have to use an anonymous function, then call stringr::str_wrap()
+  # width specifies how many characters on a line before attempting to wrap
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) +
+  theme_bw() +
+  theme(axis.text = element_text(angle = 90, hjust = 1))
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
