@@ -1,0 +1,31 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-08-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Annotating Genes
+
+## Using downloaded tables
+
+There are lot of nice annotations from The Alliance of Genome Resources <https://www.alliancegenome.org/downloads>. Found out about this because Donna wanted the zebrafish gene descriptions from Zfin and it turns out Zfin pulls from the Alliance
+
+## With `biomaRt`
+
+```{r}
+# get the list of datasets, organized by species
+biomaRt::listDatasets(biomaRt::useMart("ensembl"))
+
+# load zebrafish data
+ensembl <- biomaRt::useEnsembl(biomart = 'genes', dataset = 'drerio_gene_ensembl')
+
+# listAttributes to figure out what the name of the gene descriptions are
+biomaRt::listAttributes(ensembl)
+
+biomaRt::getBM(attributes = c('external_gene_name', 'description', 'phenotype_description'),
+               mart = ensembl) -> gene_descriptions
+```
