@@ -4,18 +4,50 @@ output: html_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+
+library(ComplexUpset)
+
 library(ggupset)
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## `ggupset`
+# Packages for creating UpSet plots using `ggplot2`
 
-<https://github.com/const-ae/ggupset>
+For data we'll be using the `gene_pathway_membership` data from the `ggupset` package to demonstrate plotting with both `ComplexUpset` and `ggupset`
 
 ```{r}
 data("gene_pathway_membership")
 ```
+
+## `ComplexUpSet`
+
+This package has MANY, MANY more options available (similar to ComplexHeatmap) and this only covers the very basic usage. <https://cran.r-project.org/web/packages/ComplexUpset/vignettes/Examples_R.html>
+
+```{r}
+### To make the plot you need a data.frame with some columns with T/F values for
+### the data entries in the row. The columns you select will be used to 
+### calculate the intersection
+
+# Reformat the gene_pathway_membership matrix into a data.frame with the 
+# pathways in the columns for plotting the intersection
+gene_pathway_membership %>%
+  t() %>%
+  as.data.frame() %>%
+  rownames_to_column('gene') -> gene_pathway_df
+
+# need a vector of what columns to use to compute the intersection
+colnames(gene_pathway_df)[-1]
+```
+
+```{r}
+upset(gene_pathway_df, 
+      colnames(gene_pathway_df)[-1])
+```
+
+## `ggupset`
+
+<https://github.com/const-ae/ggupset>
 
 ###
 
